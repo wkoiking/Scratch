@@ -17,15 +17,15 @@ library
   exposed-modules:     Lib
   build-depends:       base
 --  ghc-options:         -Werror -Wall
-  default-extensions:  StrictData, GADTSyntax
+  default-extensions:  GADTSyntax
 --   other-extensions:    NoImplicitPrelude
   default-language:    Haskell2010
 
 executable hascats-exe
   hs-source-dirs:      app
   main-is:             Main.hs
-  build-depends:       base, haskell-from-scratch
+  build-depends:       base, haskell-from-scratch, parsec, pretty-show, cereal, bits, containers
 --  ghc-options:         -threaded -Werror -Wall
-  default-extensions:  StrictData, GADTSyntax
+  default-extensions:  GADTSyntax
 --  other-extensions:    NoImplicitPrelude
   default-language:    Haskell2010
