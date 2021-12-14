@@ -4,7 +4,7 @@ module Main where
 import Lib
 
 main :: IO ()
-main = undefined
+main = mainUdpReceiver
 
 -- main = do
 --     str <- readFile "C:/Users/dmrc/Desktop/scratch/haskell-from-scratch/app/2021-10-04-logfile"

@@ -15,7 +15,16 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Lib
-  build-depends:       base, parsec, pretty-show, cereal, bits, containers, QuickCheck, generic-arbitrary
+  build-depends:       base
+                     , parsec
+                     , pretty-show
+                     , cereal
+                     , bits
+                     , containers
+                     , QuickCheck
+                     , generic-arbitrary
+                     , network
+                     , bytestring
 --  ghc-options:         -Werror -Wall
   default-extensions:  GADTSyntax
                        , DeriveGeneric

@@ -23,7 +23,7 @@ import qualified Data.Bits.Coding as Bit
 
 -- qualified
 import Text.Show.Pretty (ppShow)
-import Data.List
+import Data.List -- drop :: Int -> [a] -> [a]
 import Data.Word
 import Control.Monad
 import Data.Map (Map)
@@ -33,10 +33,51 @@ import qualified Data.Map as M
 import Test.QuickCheck
 import Test.QuickCheck.Arbitrary.Generic (genericArbitrary, genericShrink)
 
+-- network
+import Network.Socket (Socket, SockAddr)
+import qualified Network.Socket as N 
+import qualified Network.Socket.ByteString as N (recv, sendTo, send)
+
+import qualified Data.ByteString as B (drop)
+
+
 data TrainInformationMessage = TrainInformationMessage
     { commonPart :: CommonPart
     , trainPart :: [(RakeID, TrainInformation)]
     } deriving (Show, Eq)
+
+
+--UDP受信
+mainUdpReceiver :: IO ()
+mainUdpReceiver = do
+    sock <- openSockUdpReceiver "55135"　-- ポート番号のみ(受ける側) 55835…SC801
+    let loop = do
+            bstr <- N.recv sock 1472 -- イーサネットの最大フレーム長　(UDPの場合、イーサネットのフレーム長を超えるとパソケットがばらける) 
+            -- ブロッキング状態　：　何も受信しなければ処理が止まる(タイムアウトさせるか、手動で終わらせる)
+            -- (B.drop 76 bstr)　受信したデータから76byte捨てる
+            case Serial.runGet getTrainInformationMessage (B.drop 76 bstr) :: Either String TrainInformationMessage of
+                Right trainInfo -> do
+                    putStrLn $　"受信しました"
+                    putStrLn $ ppShow trainInfo                   
+                    loop
+                Left err -> do
+                    putStrLn err
+                    putStrLn "Exitting"
+                    N.close sock
+    loop
+
+
+openSockUdpReceiver
+    :: String -- ^ Port number or name
+    -> IO Socket
+openSockUdpReceiver port = do
+    addrinfos <- N.getAddrInfo (Just (N.defaultHints {N.addrFlags = [N.AI_PASSIVE]})) Nothing (Just port)
+    let serveraddr = head addrinfos
+    sock <- N.socket (N.addrFamily serveraddr) N.Datagram N.defaultProtocol
+    N.bind sock (N.addrAddress serveraddr)
+    return sock
+
+
 
 skipBits :: Int -> BitGet ()
 skipBits i = replicateM_ i Bit.getBit
@@ -84,6 +125,7 @@ getTrainInformation = Bit.runDecode $ do
     statOverspeed <- Bit.getBit -- 速度制限の超過
     statDoorEnabled <- Bit.getBit -- ドア開許可がないと開かない(安全性が求められる)
     skipBits 5
+    skipBits 8 -- 後部
 
 --   , _statTrainLocationBlockNoBuffer :: TrainLocation
     _ <- Bit.getAligned getTrainLocation
@@ -91,6 +133,7 @@ getTrainInformation = Bit.runDecode $ do
     _ <- Bit.getAligned getTrainLocation
     _ <- Bit.getAligned getTrainLocation
     statTrainSpeed <- Bit.getAligned Serial.getWord8 -- 列車の速度(km/h)
+    skipBits 8 -- 列車最高速度
     
     statDrivingMode <-  decodeDrivingMode :: BitGet (Maybe DrivingMode)
     statEBReleaseAck <- Bit.getBit -- OCCから非常ブレーキを緩解する(受理されると送ってくる)
@@ -114,9 +157,11 @@ getTrainInformation = Bit.runDecode $ do
     statIsRescueTrain <- Bit.getBit -- 現在、救援列車として走行しているかどうか(これにしないと救護車に近づけない)
     statDrivingStatus <- decodeDrivingStatus :: BitGet (Maybe DrivingStatus) -- ATOの時の制御状態
     statAdditionalInfo <- Bit.getAligned getAdditionalInformation -- OCCリモートコマンドに対して応答の負荷情報
+    Bit.getAligned $ Serial.skip 4
     statEBReasonVOBC <- Bit.getAligned getEBReasonVOBC -- EBがかかった場合の原因(車上EB要因)
     statEBReasonSC <- Bit.getAligned getEBReasonSC -- EBをかけた場合の原因(地上EB要因)
     statOnBoardATCFailureInformation <- Bit.getAligned getOnBoardATCFailureInformation -- 故障情報
+    
     return TrainInformation{..}
 
 getOCCRemoteCommandAck :: Get OCCRemoteCommandAck
