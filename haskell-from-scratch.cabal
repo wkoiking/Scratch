@@ -6,15 +6,16 @@ version:             0.1
 synopsis:            Learn Haskell from scratch 
 license:             BSD3
 license-file:        LICENSE
-author:              Nao Fujinaga
-maintainer:          wanagida@gmail.com
+author:              Mina Sawamura
+maintainer:          haskell.sawson@gmail.com
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lib
+  exposed-modules:     AppMain
+                       Data.TrainInformationMessage
   build-depends:       base
                      , parsec
                      , pretty-show
@@ -25,7 +26,16 @@ library
                      , generic-arbitrary
                      , network
                      , bytestring
---  ghc-options:         -Werror -Wall
+                     -- GUI関連
+                     , diagrams
+                     , colour
+                     , palette
+                     , diagrams-cairo
+                     , cairo
+                     , sdl2
+                     , iproute
+
+  ghc-options:         -fwarn-incomplete-patterns -fwarn-missing-signatures -optl-mconsole
   default-extensions:  GADTSyntax
                        , DeriveGeneric
                        , StrictData
@@ -34,6 +44,8 @@ library
                        , DeriveGeneric
                        , BinaryLiterals
                        , NumericUnderscores
+                       , LambdaCase
+                       , OverloadedStrings
 --   other-extensions:    NoImplicitPrelude
   default-language:    Haskell2010
 
@@ -41,7 +53,7 @@ executable hascats-exe
   hs-source-dirs:      app
   main-is:             Main.hs
   build-depends:       base, haskell-from-scratch
---  ghc-options:         -threaded -Werror -Wall
+  ghc-options:         -threaded -fwarn-incomplete-patterns -fwarn-missing-signatures -optl-mconsole
   default-extensions:  GADTSyntax
 --  other-extensions:    NoImplicitPrelude
   default-language:    Haskell2010

@@ -1,4 +1,72 @@
-resolver: lts-17.3
+# For more information, see: https://github.com/commercialhaskell/stack/blob/release/doc/yaml_configuration.md
 
+# Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
+resolver: lts-17.3
+# lts-17.0
+# nightly-2021-01-02
+# lts-16.20
+# Local packages, usually specified by relative directory name
 packages:
 - '.'
+
+# Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
+extra-deps: # []
+- active
+- diagrams
+- diagrams-cairo
+- geometry
+- monoid-extras
+- cairo-0.13.8.1
+- pango-0.13.8.1
+- glib-0.13.8.1
+- gtk2hs-buildtools-0.13.8.0
+- palette-0.3.0.2
+
+# Override default flag values for local packages and extra-deps
+flags: {}
+
+# Extra package databases containing global packages
+extra-package-dbs: []
+
+# Control whether we use the GHC we find on the path
+# system-ghc: true
+
+# Require a specific version of stack, using version ranges
+# require-stack-version: -any # Default
+# require-stack-version: >= 0.1.4.0
+
+# Override the architecture used by stack, especially useful on Windows
+# arch: i386
+# arch: x86_64
+
+# Extra directories used by stack for building
+# extra-include-dirs:
+#     - C:/gtk/include/
+# extra-lib-dirs:
+#     - C:/gtk/lib
+
+# stack build options
+build:
+  library-profiling: false
+  executable-profiling: false
+
+ghc-options:
+    # All packages
+    "$locals":
+        # -fwrite-ide-info
+        -threaded
+        -fno-warn-unused-binds
+        -fno-warn-unused-matches
+        -fno-warn-unused-do-bind
+        -fno-warn-name-shadowing
+        -fno-warn-orphans
+        # -fno-warn-unused-imports
+        # -fno-warn-unused-record-wildcards -- not in GHC 8.4.4
+        # -fno-warn-redundant-record-wildcards -- not in GHC 8.4.4
+        # -fno-warn-unused-packages -- not in GHC 8.4.4
+        # -fno-warn-deriving-defaults -- not in GHC 8.4.4
+        # -fno-warn-missed-extra-shared-lib -- not in GHC 8.4.4
+        # -Wall
+
+allow-newer: true
+# rebuild-ghc-options: true

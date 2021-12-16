@@ -1,10 +1,10 @@
 
 module Main where
 
-import Lib
+import AppMain
 
 main :: IO ()
-main = mainUdpReceiver
+main = mainApp
 
 -- main = do
 --     str <- readFile "C:/Users/dmrc/Desktop/scratch/haskell-from-scratch/app/2021-10-04-logfile"
