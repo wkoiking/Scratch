@@ -8,6 +8,7 @@ import GHC.Generics (Generic)
 -- GUI関連のモジュール
 -- base
 import Foreign.Ptr ( castPtr, nullPtr )
+import Data.List ( splitAt )
 -- sdl2
 import qualified SDL as SDL
 import qualified SDL.Input.Keyboard.Codes as SDL
@@ -67,6 +68,9 @@ sockAddrToSourceID (N.SockAddrInet _ addr) = ipv4AddrToSourceID addr
 sockAddrToSourceID (N.SockAddrInet6 _ _ addr _) = ipv6AddrToSourceID addr
 sockAddrToSourceID _ = Nothing
 
+refreshScHealthCounter :: Model -> Model
+refreshScHealthCounter model = model { scHealthCounter = 10 }
+
 updateModelWithHostName :: SourceID -> TrainInformationMessage -> Model -> Model
 updateModelWithHostName Sys1Net1 trainInfo model = model { sys1net1 = Just trainInfo }
 updateModelWithHostName Sys1Net2 trainInfo model = model { sys1net2 = Just trainInfo } 
@@ -102,7 +106,7 @@ mainUdpReceiver vModel = do
 --                     putStrLn $ "受信しました"
 --                     putStrLn $ ppShow trainInfo
                     forM_ (sockAddrToSourceID addr) $ \ srcID -> do
-                        modifyMVarPure_ vModel $ updateModelWithHostName srcID trainInfo
+                        modifyMVarPure_ vModel $ refreshScHealthCounter . updateModelWithHostName srcID trainInfo
                     model <- readMVar vModel
                     putStrLn $ ppShow model
                     loop
@@ -132,21 +136,27 @@ data Model = MkModel
     , sys1net2 :: Maybe TrainInformationMessage
     , sys2net1 :: Maybe TrainInformationMessage
     , sys2net2 :: Maybe TrainInformationMessage
+    , scHealthCounter :: Int
     } deriving (Show)
 
 initialModel :: Model
 initialModel = MkModel
-    { selectedRakeID = Just $ RakeID 1
-    , sys1net1       = Nothing
-    , sys1net2       = Nothing
-    , sys2net1       = Nothing
-    , sys2net2       = Nothing
+    { selectedRakeID  = Nothing
+    , sys1net1        = Nothing
+    , sys1net2        = Nothing
+    , sys2net1        = Nothing
+    , sys2net2        = Nothing
+    , scHealthCounter = -1
     }
 
 view :: Model -> SelectableDiagram
-view MkModel{..} = center $ hcat [trainListDiagram, value [] $ trainInformationsDiagram]
- where trainListDiagram :: SelectableDiagram
-       trainListDiagram = viewTrainList rakes
+view MkModel{..} = scale 1.5 $ bg2 bgCol $ center $ hcat $ map alignT [trainListDiagram, value [] $ trainInformationsDiagram]
+ where bgCol :: Colour Double
+       bgCol
+           | scHealthCounter < 0 = red
+           | otherwise = white
+       trainListDiagram :: SelectableDiagram
+       trainListDiagram = viewTrainList selectedRakeID rakes
        rakes :: [RakeID]
        rakes = nub $ concat $ map trainInformationMessageToRakes $ catMaybes [sys1net1, sys1net2, sys2net1, sys2net2]
        trainInformationMessageToRakes :: TrainInformationMessage -> [RakeID]
@@ -154,9 +164,14 @@ view MkModel{..} = center $ hcat [trainListDiagram, value [] $ trainInformations
        trainInformationsDiagram :: NormalDiagram
        trainInformationsDiagram = fromMaybe mempty $ do
            rakeID <- selectedRakeID
-           return $ hcat $ map (viewTrainInformation rakeID)
-                  $ mapMaybe (lookup rakeID) $ map trainPart
-                  $ catMaybes [sys1net1, sys1net2, sys2net1, sys2net2]
+           return $ center $ hcat
+                  $ mapMaybe (viewTrainInformation' rakeID) [("sys1net1", sys1net1), ("sys1net2", sys1net2), ("sys2net1", sys2net1), ("sys2net2", sys2net2)]
+            where viewTrainInformation' :: RakeID -> (String, Maybe TrainInformationMessage) -> Maybe NormalDiagram
+                  viewTrainInformation' rakeID (title, mTrainInfomationMessage) = do
+                      trainInfoMsg <- mTrainInfomationMessage
+                      trainInfo <- lookup rakeID $ trainPart trainInfoMsg
+                      return $ viewTrainInformation rakeID (title, trainInfo)
+                  
 
 --        trainInformationsDiagram = fromMaybe mempty $ do
 --            rakeID <- selectedRakeID
@@ -170,9 +185,11 @@ view MkModel{..} = center $ hcat [trainListDiagram, value [] $ trainInformations
 --            tr4 <- lookup rakeID sys2net2Trains
 --            return $ hcat $ map (viewTrainInformation rakeID) [tr1, tr2, tr3, tr4]
 
-viewTrainInformation :: RakeID -> TrainInformation -> NormalDiagram
-viewTrainInformation rakeID TrainInformation{..} = vcat [textBoxes, bitBoxes]
- where textBoxes = vsep 0.3
+
+
+viewTrainInformation :: RakeID -> (String, TrainInformation) -> NormalDiagram
+viewTrainInformation rakeID (title, TrainInformation{..}) = vcat [simpleTextBox aquamarine title, textBoxes, bitBoxes]
+ where textBoxes = center $ vsep 0.3
            [ textBox "OCCRemoteCommandAck" $ show statOCCRemoteCommandAck
            , textBox "FrontBlock" $ show $ frontBlockID statTrainLocationBlock
            , textBox "FrontOffset" $ show $ frontOffset statTrainLocationBlock
@@ -192,7 +209,7 @@ viewTrainInformation rakeID TrainInformation{..} = vcat [textBoxes, bitBoxes]
            , textBox "EBReasonSC" $ show statEBReasonSC
            , textBox "OnBoardFailure" $ show statOnBoardATCFailureInformation
            ]
-       bitBoxes = toTable 3
+       bitBoxes = center $ vcat $ map hcat $ toTable 3
            [ bitBox "TrainReady" statTrainReady 
            , bitBox "Departure" statDeparture
            , bitBox "SkipStop" statSkipStop
@@ -218,21 +235,28 @@ viewTrainInformation rakeID TrainInformation{..} = vcat [textBoxes, bitBoxes]
            , bitBox "RescueTrain" statIsRescueTrain
            ]
 
-toTable :: Int -> [NormalDiagram] -> NormalDiagram
-toTable n ds = undefined
+toTable :: Int -> [a] -> [[a]]
+toTable n [] = []
+toTable n ds = ls : toTable n rs
+ where (ls, rs) = splitAt n ds
 
 showDirection :: (Bool, Bool) -> String
 showDirection (True, False) = "<=="
 showDirection (False, True) = "==>"
 showDirection _ = "Invalid"
 
-viewTrainList :: [RakeID] -> SelectableDiagram
-viewTrainList rakes = vcat $ map (selectableTextBox .show) rakes
+viewTrainList :: Maybe RakeID -> [RakeID] -> SelectableDiagram
+viewTrainList mSelectedRake rakes = vcat $ map viewTrain rakes
+ where viewTrain :: RakeID -> SelectableDiagram
+       viewTrain rakeID = value [SelectRake rakeID] $ simpleTextBox bgCol $ show rakeID
+        where bgCol 
+                  | mSelectedRake == Just rakeID = skyblue
+                  | otherwise = white
 
-selectableTextBox :: String -> SelectableDiagram
-selectableTextBox contents = value [contents] $ mconcat
+simpleTextBox :: Colour Double -> String -> NormalDiagram
+simpleTextBox bgCol contents = mconcat
     [ text contents # fc black # lw none
-    , rect 8 2 # fc white # lc black
+    , rect 8 2 # fc bgCol # lc black
     ]
 
 textBox
@@ -251,6 +275,10 @@ textBox title contents = hsep 0.5 [titleDiagram, contentDiagram]
        r :: NormalDiagram
        r = rect 12 2
 
+bg2 :: Colour Double -> SelectableDiagram -> SelectableDiagram
+bg2 col d = d <> background
+ where background = boundingRect (clearValue d) # lw none # fc col # value []
+
 bitBox
     :: String -- ^ タイトル
     -> Bool
@@ -263,11 +291,14 @@ bitBox title bit = mconcat
            | otherwise = gray
               
 updateWithTimer :: (SDL.Scancode -> Bool) -> Model -> Model
-updateWithTimer isPressed model = model
+updateWithTimer isPressed model = model { scHealthCounter = scHealthCounter model - 1 }
 
+updateWithClick :: Button -> Model -> Model
+updateWithClick (SelectRake rakeID) model = model {selectedRakeID = Just rakeID}
+-- updateWithClick (SelectRake rakeID) (MkModel _ sys1net1 sys1net2 sys2net1 sys2net2) = MkModel (Just rakeID) sys1net1 sys1net2 sys2net1 sys2net2
 
-updateWithClick :: String -> Model -> Model
-updateWithClick button model = model
+data Button
+    = SelectRake RakeID
 
 updateWithKeyPress :: SDL.Keycode -> Model -> Model
 updateWithKeyPress _ model = model
@@ -280,7 +311,7 @@ type NormalDiagram = Diagram V2
 
 type GenericDiagram a = QDiagram V2 Double a
 
-type SelectableDiagram = GenericDiagram [String]
+type SelectableDiagram = GenericDiagram [Button]
 
 -- rasterize :: SizeSpec V2 Int -> Diagram V2 -> Diagram V2
 -- rasterize sz d = sizedAs d $ imageEmb $ ImageRGBA8 $ renderImage sz d
@@ -360,7 +391,7 @@ mainApp = do
                     model <- readMVar vModel
 --                     putStrLn $ show $ triangleClickCount model
                     let selectableDiagram :: SelectableDiagram
-                        selectableDiagram = toSDLCoord $ scale 20 $ view model
+                        selectableDiagram = toSDLCoord $ scale 10 $ view model
 
                     SDL.surfaceFillRect sdlSurface Nothing whiteRect
                     Cairo.renderWith cairoSurface $ Cairo.toRender mempty $ clearValue selectableDiagram
@@ -399,7 +430,7 @@ decodeUserEvent SDL.RegisteredEventData{..} _ = case registeredEventCode of
     _ -> return Nothing
 
 encodeUserEvent :: CustomEvent -> IO SDL.RegisteredEventData
-    encodeUserEvent CustomExposeEvent = return $ SDL.RegisteredEventData Nothing 0 nullPtr nullPtr
+encodeUserEvent CustomExposeEvent = return $ SDL.RegisteredEventData Nothing 0 nullPtr nullPtr
 
 toSDLCoord :: SelectableDiagram -> SelectableDiagram
 toSDLCoord = translate (V2 (screenWidth / 2) (screenHeight / 2)) . reflectY

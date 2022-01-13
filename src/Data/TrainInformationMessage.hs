@@ -167,7 +167,7 @@ decodeInitializationStatus :: BitGet InitializationStatus
 decodeInitializationStatus = do
     w8 <- Bit.getBitsFrom 1 ( 0b0000_0000 :: Word8)
     return $ case w8 of    
-        0b00 ->  NotInitialization
+        0b00 -> NotInitialization
         0b01 -> InInitialization
         0b10 -> CompleteInitialization
         0b11 -> InitializationTiomeout
