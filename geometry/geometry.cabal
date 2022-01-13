@@ -1,0 +1,104 @@
+name:                geometry
+version:             0.1.0.0
+synopsis:            Generic library for describing and manipulating 2- and 3-dimensional
+                     geometry.
+description:         This library consists of all the purely geometric
+                     definitions used in the diagrams vector graphics EDSL, split out into
+                     their own package for easier reuse in other projects.
+homepage:            https://diagrams.github.io
+license:             BSD3
+license-file:        LICENSE
+author:              Christopher Chalmers
+maintainer:          diagrams-discuss@googlegroups.com
+bug-reports:         https://github.com/diagrams/geometry/issues
+category:            Graphics
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       1.18
+extra-source-files:  ChangeLog.md, README.md, diagrams/*.svg
+extra-doc-files:     diagrams/*.svg
+tested-with:         GHC == 8.0.2, GHC == 8.2.2, GHC == 8.4.4, GHC == 8.6.3
+
+source-repository head
+  type:     git
+  location: http://github.com/diagrams/geometry.git
+
+library
+  exposed-modules:
+    Geometry
+    Geometry.CubicSpline
+    Geometry.CubicSpline.Boehm
+    Geometry.CubicSpline.Internal
+    Geometry.ThreeD.Camera
+    Geometry.ThreeD.Combinators
+    Geometry.ThreeD.Shapes
+    Geometry.ThreeD.Size
+    Geometry.ThreeD.Transform
+    Geometry.ThreeD.Types
+    Geometry.ThreeD.Vector
+    Geometry.Angle
+    Geometry.BoundingBox
+    Geometry.Combinators
+    Geometry.Direction
+    Geometry.Envelope
+    Geometry.HasOrigin
+    Geometry.Juxtapose
+    Geometry.Located
+    Geometry.Parametric
+    Geometry.Path
+    Geometry.Points
+    Geometry.Query
+    Geometry.Segment
+    Geometry.Size
+    Geometry.Space
+    Geometry.Trace
+    Geometry.Trail
+    Geometry.Transform
+    Geometry.TwoD.Arc
+    Geometry.TwoD.Combinators
+    Geometry.TwoD.Curvature
+    Geometry.TwoD.Ellipse
+    Geometry.TwoD.Offset
+    Geometry.TwoD.Path
+    Geometry.TwoD.Points
+    Geometry.TwoD.Polygons
+    Geometry.TwoD.Segment
+    Geometry.TwoD.Segment.Bernstein
+    Geometry.TwoD.Shapes
+    Geometry.TwoD.Size
+    Geometry.TwoD.Transform
+    Geometry.TwoD.Types
+    Geometry.TwoD.Vector
+  other-extensions:
+    BangPatterns DeriveFunctor EmptyDataDecls FlexibleContexts
+    FlexibleInstances GADTs GeneralizedNewtypeDeriving
+    MultiParamTypeClasses StandaloneDeriving TemplateHaskell
+    TypeFamilies TypeOperators UndecidableInstances
+    ConstrainedClassMethods RankNTypes NoMonomorphismRestriction
+    ScopedTypeVariables ViewPatterns Rank2Types CPP DeriveGeneric
+    DefaultSignatures DataKinds LambdaCase DeriveDataTypeable
+    ConstraintKinds TypeSynonymInstances
+  build-depends:
+    base                 >= 4.6    && < 4.14,
+    adjunctions          >= 4.3    && < 4.5,
+    array                >= 0.5    && < 0.6,
+    binary               >= 0.8    && < 0.9,
+    bytes                >= 0.15   && < 0.18,
+    cereal               >= 0.5    && < 0.6,
+    containers           >= 0.5    && < 0.7,
+    contravariant        >= 1.4    && < 1.6,
+    data-default-class   >= 0.1    && < 0.2,
+    deepseq              >= 1.4    && < 1.5,
+    diagrams-solve       >= 0.1    && < 0.2,
+    distributive         >= 0.5    && < 0.7,
+    hashable             >= 1.2    && < 1.4,
+    intervals            >= 0.8    && < 0.10,
+    lens                 >= 4.15   && < 4.19,
+    linear               >= 1.20.1 && < 1.22,
+    monoid-extras        >= 0.4    && < 0.6,
+    profunctors          >= 5.2    && < 5.6,
+    unordered-containers >= 0.2    && < 0.3,
+    vector               >= 0.12   && < 0.13
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  ghc-options:         -Wall

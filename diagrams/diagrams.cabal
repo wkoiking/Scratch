@@ -1,0 +1,84 @@
+name:                diagrams
+version:             2.0.0.0
+synopsis:            diagrams
+-- description:         
+license:             BSD3
+license-file:        LICENSE
+author:              Christopher Chalmers
+maintainer:          c.chalmers@me.com
+-- copyright:           
+category:            Graphics
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:
+    Diagrams
+    Diagrams.Prelude
+    Diagrams.Arrow
+    Diagrams.Attributes
+    Diagrams.Animation.Active
+    Diagrams.Animation
+    Diagrams.Backend.Compile
+    Diagrams.Types.Measure
+    Diagrams.Types.Annotations
+    Diagrams.Types.Names
+    Diagrams.Types.Tree
+    Diagrams.Types.Style
+    Diagrams.Types
+    Diagrams.Util
+    Diagrams.Measured
+    Diagrams.Backend.CmdLine
+    Diagrams.Backend
+    Diagrams.TwoD.Attributes
+    Diagrams.Combinators
+    Diagrams.TwoD.Combinators
+    Diagrams.TwoD.Image
+    Diagrams.TwoD.Model
+    Diagrams.TwoD.Path
+    Diagrams.TwoD.Text
+    Diagrams.ThreeD.Attributes
+    Diagrams.ThreeD.Light
+  -- other-modules:       
+  other-extensions:
+    CPP, FlexibleContexts, MultiParamTypeClasses, TypeFamilies,
+    DeriveDataTypeable, DeriveFunctor, ExistentialQuantification,
+    FlexibleInstances, GeneralizedNewtypeDeriving, LambdaCase,
+    ScopedTypeVariables, ViewPatterns, TypeOperators, GADTs,
+    TypeSynonymInstances, DataKinds, Rank2Types, EmptyDataDecls,
+    TupleSections, UndecidableInstances, ConstrainedClassMethods,
+    NoMonomorphismRestriction, RankNTypes, TemplateHaskell,
+    StandaloneDeriving
+  build-depends:
+    base,
+    exceptions,
+    transformers,
+    constraints,
+    active,
+    intervals,
+    vector,
+    linear,
+    geometry,
+    reflection,
+    profunctors,
+    lens,
+    colour,
+    data-default-class,
+    distributive,
+    hashable,
+    monoid-extras,
+    containers,
+    mtl,
+    adjunctions,
+    unordered-containers,
+    optparse-applicative,
+    directory,
+    filepath,
+    fsnotify,
+    process,
+    JuicyPixels,
+    bytestring
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  ghc-options:      -Wall
