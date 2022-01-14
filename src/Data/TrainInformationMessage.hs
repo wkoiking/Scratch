@@ -44,6 +44,9 @@ data TrainInformationMessage = TrainInformationMessage
     , trainPart :: [(RakeID, TrainInformation)]
     } deriving (Show, Eq)
 
+isValidRakeID :: (RakeID, TrainInformation) -> Bool
+isValidRakeID (RakeID n, _) = 0 < n
+
 skipBits :: Int -> BitGet ()
 skipBits i = replicateM_ i Bit.getBit
 

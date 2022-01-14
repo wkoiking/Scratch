@@ -102,11 +102,11 @@ mainUdpReceiver vModel = do
             -- ブロッキング状態　：　何も受信しなければ処理が止まる(タイムアウトさせるか、手動で終わらせる)
             -- (B.drop 76 bstr)　受信したデータから76byte捨てる
             case Serial.runGet getTrainInformationMessage (B.drop 76 bstr) :: Either String TrainInformationMessage of
-                Right trainInfo -> do
+                Right (TrainInformationMessage common trainInfo) -> do
 --                     putStrLn $ "受信しました"
 --                     putStrLn $ ppShow trainInfo
                     forM_ (sockAddrToSourceID addr) $ \ srcID -> do
-                        modifyMVarPure_ vModel $ refreshScHealthCounter . updateModelWithHostName srcID trainInfo
+                        modifyMVarPure_ vModel $ refreshScHealthCounter . updateModelWithHostName srcID (TrainInformationMessage common (filter isValidRakeID trainInfo))
                     model <- readMVar vModel
                     putStrLn $ ppShow model
                     loop
