@@ -69,7 +69,11 @@ sockAddrToSourceID (N.SockAddrInet6 _ _ addr _) = ipv6AddrToSourceID addr
 sockAddrToSourceID _ = Nothing
 
 refreshScHealthCounter :: Model -> Model
-refreshScHealthCounter model = model { scHealthCounter = 10 }
+refreshScHealthCounter model = model { scHealthCounterS1N1 = 10
+, scHealthCounterS1N2 = 10
+, scHealthCounterS2N1 = 10
+, scHealthCounterS2N2 = 10
+}
 
 updateModelWithHostName :: SourceID -> TrainInformationMessage -> Model -> Model
 updateModelWithHostName Sys1Net1 trainInfo model = model { sys1net1 = Just trainInfo }
@@ -136,24 +140,33 @@ data Model = MkModel
     , sys1net2 :: Maybe TrainInformationMessage
     , sys2net1 :: Maybe TrainInformationMessage
     , sys2net2 :: Maybe TrainInformationMessage
-    , scHealthCounter :: Int
+    , scHealthCounterS1N1 :: Int
+    , scHealthCounterS1N2 :: Int
+    , scHealthCounterS2N1 :: Int
+    , scHealthCounterS2N2 :: Int
     } deriving (Show)
 
 initialModel :: Model
 initialModel = MkModel
-    { selectedRakeID  = Nothing
-    , sys1net1        = Nothing
-    , sys1net2        = Nothing
-    , sys2net1        = Nothing
-    , sys2net2        = Nothing
-    , scHealthCounter = -1
+    { selectedRakeID      = Nothing
+    , sys1net1            = Nothing
+    , sys1net2            = Nothing
+    , sys2net1            = Nothing
+    , sys2net2            = Nothing
+    , scHealthCounterS1N1 = -1
+    , scHealthCounterS1N2 = -1
+    , scHealthCounterS2N1 = -1
+    , scHealthCounterS2N2 = -1 
     }
 
 view :: Model -> SelectableDiagram
 view MkModel{..} = scale 1.5 $ bg2 bgCol $ center $ hcat $ map alignT [trainListDiagram, value [] $ trainInformationsDiagram]
  where bgCol :: Colour Double
        bgCol
-           | scHealthCounter < 0 = red
+           | scHealthCounterS1N1 < 0 = red
+           | scHealthCounterS1N2 < 0 = red
+           | scHealthCounterS2N1 < 0 = red
+           | scHealthCounterS2N2 < 0 = red
            | otherwise = white
        trainListDiagram :: SelectableDiagram
        trainListDiagram = viewTrainList selectedRakeID rakes
@@ -291,7 +304,11 @@ bitBox title bit = mconcat
            | otherwise = gray
               
 updateWithTimer :: (SDL.Scancode -> Bool) -> Model -> Model
-updateWithTimer isPressed model = model { scHealthCounter = scHealthCounter model - 1 }
+updateWithTimer isPressed model = model { scHealthCounterS1N1 = scHealthCounterS1N1 model - 1
+, scHealthCounterS1N2 = scHealthCounterS1N2 model - 1
+, scHealthCounterS2N1 = scHealthCounterS2N1 model - 1
+, scHealthCounterS2N2 = scHealthCounterS2N2 model - 1
+}
 
 updateWithClick :: Button -> Model -> Model
 updateWithClick (SelectRake rakeID) model = model {selectedRakeID = Just rakeID}
