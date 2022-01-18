@@ -67,10 +67,10 @@ getTrainInformationMessage = do
 
 
 getRakeID :: Get RakeID
-getRakeID = liftM RakeID Serial.getWord16be
--- getRakeID = do
---     w16 <- getWord16be
---     return $ RakeID w16
+getRakeID = Bit.runDecode $ do
+    skipBits 6
+    n <- Bit.getBitsFrom 9 (0 :: Word16) -- 第一引数のnは2^nのビットの位置
+    return $ RakeID n
 
 data RakeID = RakeID Word16
     deriving (Show, Eq)
@@ -135,7 +135,7 @@ getTrainInformation = Bit.runDecode $ do
     return TrainInformation{..}
 
 getOCCRemoteCommandAck :: Get OCCRemoteCommandAck
-getOCCRemoteCommandAck = liftM OCCRemoteCommandAck Serial.getWord8
+getOCCRemoteCommandAck = liftM RemoteCmdAck Serial.getWord8
 -- getOCCRemoteCommandAck = do
 --     w8 <- getWord8
 --     return $ OCCRemoteCommandAck w8
@@ -172,17 +172,17 @@ decodeInitializationStatus :: BitGet InitializationStatus
 decodeInitializationStatus = do
     w8 <- Bit.getBitsFrom 1 ( 0b0000_0000 :: Word8)
     return $ case w8 of    
-        0b00 -> NotInitialization
-        0b01 -> InInitialization
-        0b10 -> CompleteInitialization
-        0b11 -> InitializationTiomeout
+        0b00 -> NotInitialing
+        0b01 -> Initialing
+        0b10 -> Initialed
+        0b11 -> Timeout
 
 decodeSleepModeStatus :: BitGet (Maybe SleepModeStatus)
 decodeSleepModeStatus = do
     w8 <- Bit.getBitsFrom 1 ( 0b0000_0000 :: Word8)
     return $ case w8 of
         0b00 -> Just NotSleep
-        0b01 -> Just DuringTrainsition
+        0b01 -> Just Trainsition
         0b11 -> Just SleepMode
         _ -> Nothing
 
@@ -209,7 +209,7 @@ decodeDrivingStatus = do
         _ -> Nothing
 
 getAdditionalInformation :: Get AdditionalInformation
-getAdditionalInformation = liftM AdditionalInformation Serial.getWord32be
+getAdditionalInformation = liftM AdditionalInfo Serial.getWord32be
 
 getEBReasonVOBC :: Get EBReasonVOBC
 getEBReasonVOBC = liftM EBReasonVOBC Serial.getWord16be
@@ -218,7 +218,7 @@ getEBReasonSC :: Get EBReasonSC
 getEBReasonSC = liftM EBReasonSC Serial.getWord16be
 
 getOnBoardATCFailureInformation:: Get OnBoardATCFailureInformation
-getOnBoardATCFailureInformation = liftM OnBoardATCFailureInformation Serial.getWord32be
+getOnBoardATCFailureInformation = liftM ATCFailureInfo Serial.getWord32be
 
 
 data TrainInformation = TrainInformation
@@ -276,7 +276,7 @@ data DrivingMode
 
 data SleepModeStatus 
     = NotSleep
-    | DuringTrainsition
+    | Trainsition
     | SleepMode
     deriving (Show, Eq)
     
@@ -304,10 +304,10 @@ data DrivingStatus
 -- P0Stop　…　定点停止（地上子と車上子）
 -- 車上装置の今の制御状態
 
-data OCCRemoteCommandAck = OCCRemoteCommandAck Word8
+data OCCRemoteCommandAck = RemoteCmdAck Word8
     deriving (Show, Eq)
 
-data AdditionalInformation = AdditionalInformation Word32
+data AdditionalInformation = AdditionalInfo Word32
     deriving (Show, Eq)
 
 data TrainLocation =  TrainLocation
@@ -325,14 +325,14 @@ data EBReasonSC = EBReasonSC Word16
 data EBReasonVOBC = EBReasonVOBC Word16
     deriving (Show, Eq)
 
-data OnBoardATCFailureInformation = OnBoardATCFailureInformation Word32
+data OnBoardATCFailureInformation = ATCFailureInfo Word32
     deriving (Show, Eq)
 
 data InitializationStatus
-    = NotInitialization
-    | InInitialization
-    | CompleteInitialization
-    | InitializationTiomeout
+    = NotInitialing
+    | Initialing
+    | Initialed
+    | Timeout
     deriving (Show, Eq)
 
 data CommonPart = CommonPart

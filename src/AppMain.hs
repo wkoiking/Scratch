@@ -171,10 +171,10 @@ view MkModel{..} = scale 1.5 $ bg2 white $ center $ hcat $ map alignT [trainList
            rakeID <- selectedRakeID
            return $ center $ hcat
                   $ mapMaybe (viewTrainInformation' rakeID)
-                      [ ("sys1net1", scHealthCounterS1N1 < 0, sys1net1)
-                      , ("sys1net2", scHealthCounterS1N2 < 0, sys1net2)
-                      , ("sys2net1", scHealthCounterS2N1 < 0, sys2net1)
-                      , ("sys2net2", scHealthCounterS2N2 < 0, sys2net2)
+                      [ ("Sys1 Net1", scHealthCounterS1N1 < 0, sys1net1)
+                      , ("Sys1 Net2", scHealthCounterS1N2 < 0, sys1net2)
+                      , ("Sys2 Net1", scHealthCounterS2N1 < 0, sys2net1)
+                      , ("Sys2 Net2", scHealthCounterS2N2 < 0, sys2net2)
                       ]
                       
             where viewTrainInformation' :: RakeID -> (String, Bool, Maybe TrainInformationMessage) -> Maybe NormalDiagram
@@ -204,7 +204,7 @@ viewTrainInformation rakeID (title, failed, TrainInformation{..}) = bg bgCol $ v
  where bgCol | failed = red
              | otherwise = white
        textBoxes = center $ vsep 0.3
-           [ textBox "OCCRemoteCommandAck" $ show statOCCRemoteCommandAck
+           [ textBox "RemoteCmdAck" $ show statOCCRemoteCommandAck
            , textBox "FrontBlock" $ show $ frontBlockID statTrainLocationBlock
            , textBox "FrontOffset" $ show $ frontOffset statTrainLocationBlock
            , textBox "RearBlock" $ show $ rearBlockID statTrainLocationBlock
@@ -212,7 +212,7 @@ viewTrainInformation rakeID (title, failed, TrainInformation{..}) = bg bgCol $ v
            , textBox "TrainSpeed" $ show statTrainSpeed 
            , textBox "DrivingMode" $ maybe "NA" show statDrivingMode
            , textBox "DistanceToMA" $ show statDistanceToMA 
-           , textBox "RollingStockProfile" $ show statRollingStockProfile 
+           , textBox "TrainType" $ show statRollingStockProfile 
            , textBox "InitStatus" $ show statInitStatus
            , textBox "Direction" $ showDirection statRunningDirection
            , textBox "Sleep Mode" $ maybe "NA" show statSleepMode
