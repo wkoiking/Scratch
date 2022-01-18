@@ -68,13 +68,6 @@ sockAddrToSourceID (N.SockAddrInet _ addr) = ipv4AddrToSourceID addr
 sockAddrToSourceID (N.SockAddrInet6 _ _ addr _) = ipv6AddrToSourceID addr
 sockAddrToSourceID _ = Nothing
 
-refreshScHealthCounter :: Model -> Model
-refreshScHealthCounter model = model { scHealthCounterS1N1 = 10
-, scHealthCounterS1N2 = 10
-, scHealthCounterS2N1 = 10
-, scHealthCounterS2N2 = 10
-}
-
 updateModelWithHostName :: SourceID -> TrainInformationMessage -> Model -> Model
 updateModelWithHostName Sys1Net1 trainInfo model = model { sys1net1 = Just trainInfo }
 updateModelWithHostName Sys1Net2 trainInfo model = model { sys1net2 = Just trainInfo } 
@@ -110,7 +103,7 @@ mainUdpReceiver vModel = do
 --                     putStrLn $ "受信しました"
 --                     putStrLn $ ppShow trainInfo
                     forM_ (sockAddrToSourceID addr) $ \ srcID -> do
-                        modifyMVarPure_ vModel $ refreshScHealthCounter . updateModelWithHostName srcID (TrainInformationMessage common (filter isValidRakeID trainInfo))
+                        modifyMVarPure_ vModel $ updateScHealthCounter srcID . updateModelWithHostName srcID (TrainInformationMessage common (filter isValidRakeID trainInfo))
                     model <- readMVar vModel
                     putStrLn $ ppShow model
                     loop
@@ -133,6 +126,12 @@ openSockUdpReceiver port = do
 ----------------------------------------
 -- Model, view, update
 ----------------------------------------
+
+updateScHealthCounter :: SourceID -> Model -> Model
+updateScHealthCounter Sys1Net1 model = model{ scHealthCounterS1N1 = 10 }
+updateScHealthCounter Sys1Net2 model = model{ scHealthCounterS1N2 = 10 }
+updateScHealthCounter Sys2Net1 model = model{ scHealthCounterS2N1 = 10 }
+updateScHealthCounter Sys2Net2 model = model{ scHealthCounterS2N2 = 10 }
 
 data Model = MkModel
     { selectedRakeID :: Maybe RakeID
@@ -160,15 +159,8 @@ initialModel = MkModel
     }
 
 view :: Model -> SelectableDiagram
-view MkModel{..} = scale 1.5 $ bg2 bgCol $ center $ hcat $ map alignT [trainListDiagram, value [] $ trainInformationsDiagram]
- where bgCol :: Colour Double
-       bgCol
-           | scHealthCounterS1N1 < 0 = red
-           | scHealthCounterS1N2 < 0 = red
-           | scHealthCounterS2N1 < 0 = red
-           | scHealthCounterS2N2 < 0 = red
-           | otherwise = white
-       trainListDiagram :: SelectableDiagram
+view MkModel{..} = scale 1.5 $ bg2 white $ center $ hcat $ map alignT [trainListDiagram, value [] $ trainInformationsDiagram]
+ where trainListDiagram :: SelectableDiagram
        trainListDiagram = viewTrainList selectedRakeID rakes
        rakes :: [RakeID]
        rakes = nub $ concat $ map trainInformationMessageToRakes $ catMaybes [sys1net1, sys1net2, sys2net1, sys2net2]
@@ -178,12 +170,18 @@ view MkModel{..} = scale 1.5 $ bg2 bgCol $ center $ hcat $ map alignT [trainList
        trainInformationsDiagram = fromMaybe mempty $ do
            rakeID <- selectedRakeID
            return $ center $ hcat
-                  $ mapMaybe (viewTrainInformation' rakeID) [("sys1net1", sys1net1), ("sys1net2", sys1net2), ("sys2net1", sys2net1), ("sys2net2", sys2net2)]
-            where viewTrainInformation' :: RakeID -> (String, Maybe TrainInformationMessage) -> Maybe NormalDiagram
-                  viewTrainInformation' rakeID (title, mTrainInfomationMessage) = do
+                  $ mapMaybe (viewTrainInformation' rakeID)
+                      [ ("sys1net1", scHealthCounterS1N1 < 0, sys1net1)
+                      , ("sys1net2", scHealthCounterS1N2 < 0, sys1net2)
+                      , ("sys2net1", scHealthCounterS2N1 < 0, sys2net1)
+                      , ("sys2net2", scHealthCounterS2N2 < 0, sys2net2)
+                      ]
+                      
+            where viewTrainInformation' :: RakeID -> (String, Bool, Maybe TrainInformationMessage) -> Maybe NormalDiagram
+                  viewTrainInformation' rakeID (title, failed, mTrainInfomationMessage) = do
                       trainInfoMsg <- mTrainInfomationMessage
                       trainInfo <- lookup rakeID $ trainPart trainInfoMsg
-                      return $ viewTrainInformation rakeID (title, trainInfo)
+                      return $ viewTrainInformation rakeID (title, failed, trainInfo)
                   
 
 --        trainInformationsDiagram = fromMaybe mempty $ do
@@ -198,11 +196,14 @@ view MkModel{..} = scale 1.5 $ bg2 bgCol $ center $ hcat $ map alignT [trainList
 --            tr4 <- lookup rakeID sys2net2Trains
 --            return $ hcat $ map (viewTrainInformation rakeID) [tr1, tr2, tr3, tr4]
 
+-- trainInformatinBackGround :: NormalDiagram
+-- trainInformatinBackGround = boundingRect $ viewTrainInformation ("", True, def)
 
-
-viewTrainInformation :: RakeID -> (String, TrainInformation) -> NormalDiagram
-viewTrainInformation rakeID (title, TrainInformation{..}) = vcat [simpleTextBox aquamarine title, textBoxes, bitBoxes]
- where textBoxes = center $ vsep 0.3
+viewTrainInformation :: RakeID -> (String, Bool, TrainInformation) -> NormalDiagram
+viewTrainInformation rakeID (title, failed, TrainInformation{..}) = bg bgCol $ vcat [simpleTextBox aquamarine title, textBoxes, bitBoxes]
+ where bgCol | failed = red
+             | otherwise = white
+       textBoxes = center $ vsep 0.3
            [ textBox "OCCRemoteCommandAck" $ show statOCCRemoteCommandAck
            , textBox "FrontBlock" $ show $ frontBlockID statTrainLocationBlock
            , textBox "FrontOffset" $ show $ frontOffset statTrainLocationBlock
@@ -304,11 +305,8 @@ bitBox title bit = mconcat
            | otherwise = gray
               
 updateWithTimer :: (SDL.Scancode -> Bool) -> Model -> Model
-updateWithTimer isPressed model = model { scHealthCounterS1N1 = scHealthCounterS1N1 model - 1
-, scHealthCounterS1N2 = scHealthCounterS1N2 model - 1
-, scHealthCounterS2N1 = scHealthCounterS2N1 model - 1
-, scHealthCounterS2N2 = scHealthCounterS2N2 model - 1
-}
+updateWithTimer isPressed MkModel{..}
+    = MkModel selectedRakeID sys1net1 sys1net2 sys2net1 sys2net2 (scHealthCounterS1N1 - 1) (scHealthCounterS1N2 - 1) (scHealthCounterS2N1 - 1) (scHealthCounterS2N2 - 1) 
 
 updateWithClick :: Button -> Model -> Model
 updateWithClick (SelectRake rakeID) model = model {selectedRakeID = Just rakeID}

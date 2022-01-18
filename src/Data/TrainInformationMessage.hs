@@ -1062,3 +1062,7 @@ instance Arbitrary Time where
 instance Arbitrary MyBool where
     arbitrary = genericArbitrary
     shrink = genericShrink
+
+-- def
+
+
