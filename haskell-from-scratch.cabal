@@ -16,6 +16,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     AppMain
                        Data.TrainInformationMessage
+                       Data.PasreAssignmentFileOC
   build-depends:       base
                      , parsec
                      , pretty-show
@@ -26,6 +27,8 @@ library
                      , generic-arbitrary
                      , network
                      , bytestring
+                     , parsec-numeric
+                     , array
                      -- GUI関連
                      , diagrams
                      , colour
