@@ -26,8 +26,16 @@ import Control.Concurrent.MVar (MVar, newMVar, readMVar, swapMVar, modifyMVar_) 
 import Data.Int (Int32)
 import Data.Maybe (listToMaybe, mapMaybe, catMaybes, fromMaybe)
 
+-- parsec
+import qualified Text.Parsec as P
+
+-- bytestring
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+
 -- 文字列のパーサ
-import Data.TrainInformationMessage
+-- import Data.TrainInformationMessage
+import Data.PasreAssignmentFileOC
 
 -- バイナリデータ(decode）
 -- cereal -- serializeからきてる
@@ -43,7 +51,7 @@ import Data.Map (Map)
 import Data.Tuple (swap)
 import qualified Data.Map as M
 
-import Test.QuickCheck hiding (sample, scale)
+import Test.QuickCheck hiding (sample, scale, sized)
 import Test.QuickCheck.Arbitrary.Generic (genericArbitrary, genericShrink)
 
 -- network
@@ -71,47 +79,49 @@ sockAddrToSourceID _ = Nothing
 refreshScHealthCounter :: Model -> Model
 refreshScHealthCounter model = model { scHealthCounter = 10 }
 
-updateModelWithHostName :: SourceID -> TrainInformationMessage -> Model -> Model
-updateModelWithHostName Sys1Net1 trainInfo model = model { sys1net1 = Just trainInfo }
-updateModelWithHostName Sys1Net2 trainInfo model = model { sys1net2 = Just trainInfo } 
-updateModelWithHostName Sys2Net1 trainInfo model = model { sys2net1 = Just trainInfo }
-updateModelWithHostName Sys2Net2 trainInfo model = model { sys2net2 = Just trainInfo }
+updateModelWithHostName :: SourceID -> Map SheetName [(String, Bool)] -> Model -> Model
+updateModelWithHostName Sys1Net1 ocStatus model = model { sys1net1 = sys1net1 model `M.union` ocStatus }
+-- updateModelWithHostName Sys1Net2 trainInfo model = model { sys1net2 = Just trainInfo } 
+-- updateModelWithHostName Sys2Net1 trainInfo model = model { sys2net1 = Just trainInfo }
+-- updateModelWithHostName Sys2Net2 trainInfo model = model { sys2net2 = Just trainInfo }
 
 ipv4AddrToSourceID :: Word32 -> Maybe SourceID
 ipv4AddrToSourceID ipAddr
-    | fromHostAddress ipAddr `isMatchedTo` makeAddrRange (toIPv4 [172, 21, 1, 1]) 32 = Just Sys1Net1
-    | fromHostAddress ipAddr `isMatchedTo` makeAddrRange (toIPv4 [172, 22, 1, 1]) 32 = Just Sys1Net2
-    | fromHostAddress ipAddr `isMatchedTo` makeAddrRange (toIPv4 [172, 21, 1, 2]) 32 = Just Sys2Net1
-    | fromHostAddress ipAddr `isMatchedTo` makeAddrRange (toIPv4 [172, 22, 1, 2]) 32 = Just Sys2Net2
+    | fromHostAddress ipAddr `isMatchedTo` makeAddrRange (toIPv4 [172, 21, 51, 1]) 32 = Just Sys1Net1
+    | fromHostAddress ipAddr `isMatchedTo` makeAddrRange (toIPv4 [172, 22, 51, 1]) 32 = Just Sys1Net2
+    | fromHostAddress ipAddr `isMatchedTo` makeAddrRange (toIPv4 [172, 21, 51, 2]) 32 = Just Sys2Net1
+    | fromHostAddress ipAddr `isMatchedTo` makeAddrRange (toIPv4 [172, 22, 51, 2]) 32 = Just Sys2Net2
     | otherwise = Nothing
 
 ipv6AddrToSourceID :: (Word32, Word32, Word32, Word32) -> Maybe SourceID
 ipv6AddrToSourceID ipAddr
-    | fromHostAddress6 ipAddr `isMatchedTo` ipv4RangeToIPv6 (makeAddrRange (toIPv4 [172, 21, 1, 1]) 32) = Just Sys1Net1
-    | fromHostAddress6 ipAddr `isMatchedTo` ipv4RangeToIPv6 (makeAddrRange (toIPv4 [172, 22, 1, 1]) 32) = Just Sys1Net2
-    | fromHostAddress6 ipAddr `isMatchedTo` ipv4RangeToIPv6 (makeAddrRange (toIPv4 [172, 21, 1, 2]) 32) = Just Sys2Net1
-    | fromHostAddress6 ipAddr `isMatchedTo` ipv4RangeToIPv6 (makeAddrRange (toIPv4 [172, 22, 1, 2]) 32) = Just Sys2Net2
+    | fromHostAddress6 ipAddr `isMatchedTo` ipv4RangeToIPv6 (makeAddrRange (toIPv4 [172, 21, 51, 1]) 32) = Just Sys1Net1
+    | fromHostAddress6 ipAddr `isMatchedTo` ipv4RangeToIPv6 (makeAddrRange (toIPv4 [172, 22, 51, 1]) 32) = Just Sys1Net2
+    | fromHostAddress6 ipAddr `isMatchedTo` ipv4RangeToIPv6 (makeAddrRange (toIPv4 [172, 21, 51, 2]) 32) = Just Sys2Net1
+    | fromHostAddress6 ipAddr `isMatchedTo` ipv4RangeToIPv6 (makeAddrRange (toIPv4 [172, 22, 51, 2]) 32) = Just Sys2Net2
     | otherwise = Nothing
 
 --UDP受信
-mainUdpReceiver :: MVar Model -> IO ()
-mainUdpReceiver vModel = do
-    sock <- openSockUdpReceiver "55135"　-- ポート番号のみ(受ける側) 55835…SC801
+mainUdpReceiver :: String -> Get (Map SheetName ByteString) -> [(String, SheetName, Int)] -> MVar Model -> IO ()
+mainUdpReceiver port getOC2ATS assignments vModel = do
+    sock <- openSockUdpReceiver port -- ポート番号のみ(受ける側) 55835…SC801
     let loop = do
-            (bstr, addr) <- N.recvFrom sock 1472 -- イーサネットの最大フレーム長　(UDPの場合、イーサネットのフレーム長を超えるとパソケットがばらける) 
+            (bstr, addr) <- N.recvFrom sock 1472 -- イーサネットの最大フレーム長　(UDPの場合、イーサネットのフレーム長を超えるとパソケットがばらける)
+            putStrLn $ "received:" ++ port
             -- ブロッキング状態　：　何も受信しなければ処理が止まる(タイムアウトさせるか、手動で終わらせる)
             -- (B.drop 76 bstr)　受信したデータから76byte捨てる
-            case Serial.runGet getTrainInformationMessage (B.drop 76 bstr) :: Either String TrainInformationMessage of
-                Right (TrainInformationMessage common trainInfo) -> do
+            case Serial.runGet getOC2ATS bstr :: Either String (Map SheetName ByteString) of
+                Right sheets -> do
 --                     putStrLn $ "受信しました"
 --                     putStrLn $ ppShow trainInfo
                     forM_ (sockAddrToSourceID addr) $ \ srcID -> do
-                        modifyMVarPure_ vModel $ refreshScHealthCounter . updateModelWithHostName srcID (TrainInformationMessage common (filter isValidRakeID trainInfo))
+--                         putStrLn $ show $ toBitStatusOC2ATS1 assignments sheets
+                        modifyMVarPure_ vModel $ refreshScHealthCounter . updateModelWithHostName srcID (toBitStatus assignments sheets)
                     model <- readMVar vModel
-                    putStrLn $ ppShow model
+--                     putStrLn $ ppShow model
                     loop
                 Left err -> do
---                     putStrLn err
+                    putStrLn err
 --                     putStrLn "Exitting"
                     N.close sock
     loop
@@ -131,109 +141,55 @@ openSockUdpReceiver port = do
 ----------------------------------------
 
 data Model = MkModel
-    { selectedRakeID :: Maybe RakeID
-    , sys1net1 :: Maybe TrainInformationMessage
-    , sys1net2 :: Maybe TrainInformationMessage
-    , sys2net1 :: Maybe TrainInformationMessage
-    , sys2net2 :: Maybe TrainInformationMessage
+    { selectedSheet :: Maybe SheetName
+    , sys1net1 :: Map SheetName [(String, Bool)]
+--     , sys1net2 :: Map SheetName [(String, Bool)]
+--     , sys2net1 :: Map SheetName [(String, Bool)]
+--     , sys2net2 :: Map SheetName [(String, Bool)]
     , scHealthCounter :: Int
     } deriving (Show)
 
 initialModel :: Model
 initialModel = MkModel
-    { selectedRakeID  = Nothing
-    , sys1net1        = Nothing
-    , sys1net2        = Nothing
-    , sys2net1        = Nothing
-    , sys2net2        = Nothing
+    { selectedSheet   = Nothing
+    , sys1net1        = mempty
+--     , sys1net2        = mempty
+--     , sys2net1        = mempty
+--     , sys2net2        = mempty
     , scHealthCounter = -1
     }
 
 view :: Model -> SelectableDiagram
-view MkModel{..} = scale 1.5 $ bg2 bgCol $ center $ hcat $ map alignT [trainListDiagram, value [] $ trainInformationsDiagram]
- where bgCol :: Colour Double
+view MkModel{..} = center $ mconcat $ map alignT
+    [ contents # sizedAs screenRect
+    , value [] $ screenRect
+    ]
+ where contents = center $ vcat
+           [ sheetList 
+           , sheetDiagram
+           ]
+       sheetDiagram = value [] $ sized (mkWidth $ width sheetList) $ case selectedBits of
+           Just bits -> viewSheet bits
+           Nothing -> mconcat
+               [ text "Please Select Sheet"
+               , phantom (rect 20 2 :: NormalDiagram)
+               ]
+       sheetList :: SelectableDiagram
+       sheetList = viewSheetList selectedSheet [I1 ..]
+       selectedBits :: Maybe (SheetName, [(String, Bool)])
+       selectedBits = do
+           sheet <- selectedSheet
+           bits <- M.lookup sheet sys1net1
+           return (sheet, bits)
+       bgCol :: Colour Double
        bgCol
            | scHealthCounter < 0 = red
            | otherwise = white
-       trainListDiagram :: SelectableDiagram
-       trainListDiagram = viewTrainList selectedRakeID rakes
-       rakes :: [RakeID]
-       rakes = nub $ concat $ map trainInformationMessageToRakes $ catMaybes [sys1net1, sys1net2, sys2net1, sys2net2]
-       trainInformationMessageToRakes :: TrainInformationMessage -> [RakeID]
-       trainInformationMessageToRakes message = map fst $ trainPart message
-       trainInformationsDiagram :: NormalDiagram
-       trainInformationsDiagram = fromMaybe mempty $ do
-           rakeID <- selectedRakeID
-           return $ center $ hcat
-                  $ mapMaybe (viewTrainInformation' rakeID) [("sys1net1", sys1net1), ("sys1net2", sys1net2), ("sys2net1", sys2net1), ("sys2net2", sys2net2)]
-            where viewTrainInformation' :: RakeID -> (String, Maybe TrainInformationMessage) -> Maybe NormalDiagram
-                  viewTrainInformation' rakeID (title, mTrainInfomationMessage) = do
-                      trainInfoMsg <- mTrainInfomationMessage
-                      trainInfo <- lookup rakeID $ trainPart trainInfoMsg
-                      return $ viewTrainInformation rakeID (title, trainInfo)
-                  
+       screenRect :: NormalDiagram
+       screenRect = rect screenWidth screenHeight # bg bgCol
 
---        trainInformationsDiagram = fromMaybe mempty $ do
---            rakeID <- selectedRakeID
---            TrainInformationMessage _ sys1net1Trains <- sys1net1
---            TrainInformationMessage _ sys1net2Trains <- sys1net2
---            TrainInformationMessage _ sys2net1Trains <- sys2net1
---            TrainInformationMessage _ sys2net2Trains <- sys2net2
---            tr1 <- lookup rakeID sys1net1Trains
---            tr2 <- lookup rakeID sys1net2Trains
---            tr3 <- lookup rakeID sys2net1Trains
---            tr4 <- lookup rakeID sys2net2Trains
---            return $ hcat $ map (viewTrainInformation rakeID) [tr1, tr2, tr3, tr4]
-
-
-
-viewTrainInformation :: RakeID -> (String, TrainInformation) -> NormalDiagram
-viewTrainInformation rakeID (title, TrainInformation{..}) = vcat [simpleTextBox aquamarine title, textBoxes, bitBoxes]
- where textBoxes = center $ vsep 0.3
-           [ textBox "OCCRemoteCommandAck" $ show statOCCRemoteCommandAck
-           , textBox "FrontBlock" $ show $ frontBlockID statTrainLocationBlock
-           , textBox "FrontOffset" $ show $ frontOffset statTrainLocationBlock
-           , textBox "RearBlock" $ show $ rearBlockID statTrainLocationBlock
-           , textBox "RearOffset" $ show $ rearOffset statTrainLocationBlock
-           , textBox "TrainSpeed" $ show statTrainSpeed 
-           , textBox "DrivingMode" $ maybe "NA" show statDrivingMode
-           , textBox "DistanceToMA" $ show statDistanceToMA 
-           , textBox "RollingStockProfile" $ show statRollingStockProfile 
-           , textBox "InitStatus" $ show statInitStatus
-           , textBox "Direction" $ showDirection statRunningDirection
-           , textBox "Sleep Mode" $ maybe "NA" show statSleepMode
-           , textBox "Regime" $ maybe "NA" show statRegime
-           , textBox "DrivingStatus" $ maybe "NA" show statDrivingStatus
-           , textBox "AdditionalInfo" $ show statAdditionalInfo
-           , textBox "EBReasonVOBC" $ show statEBReasonVOBC
-           , textBox "EBReasonSC" $ show statEBReasonSC
-           , textBox "OnBoardFailure" $ show statOnBoardATCFailureInformation
-           ]
-       bitBoxes = center $ vcat $ map hcat $ toTable 3
-           [ bitBox "TrainReady" statTrainReady 
-           , bitBox "Departure" statDeparture
-           , bitBox "SkipStop" statSkipStop
-           , bitBox "TrainStopped" statTrainStopped
-           , bitBox "TestTrack" statTestTrack
-           , bitBox "Passed" statPassed
-           , bitBox "Overspeed" statOverspeed
-           , bitBox "DoorEnabled" statDoorEnabled
-           , bitBox "EBReleaseAck" statEBReleaseAck
-           , bitBox "EBReleaseCmd" statEBReleaseCommand 
-           , bitBox "P0Stopped" statP0Stopped 
-           , bitBox "Held" statHeld
-           , bitBox "Removed" statRemoved
-           , bitBox "System" statSystem
-           , bitBox "WakeupAck" statWakeupAck
-           , bitBox "StanbyAck" statStanbyAck
-           , bitBox "DM1 Master" $ fst statMasterSlave
-           , bitBox "DM2 Master" $ snd statMasterSlave
-           , bitBox "DM1 Reset" $ fst statResetResult 
-           , bitBox "DM2 Reset" $ snd statResetResult 
-           , bitBox "LDoorClosed" $ fst statDoorClosedStatus 
-           , bitBox "RDoorClosed" $ snd statDoorClosedStatus
-           , bitBox "RescueTrain" statIsRescueTrain
-           ]
+viewSheet :: (SheetName, [(String, Bool)]) -> NormalDiagram
+viewSheet (sheetName, bs) = center $ vcat $ map hcat $ toTable 16 $ map (uncurry bitBox) bs
 
 toTable :: Int -> [a] -> [[a]]
 toTable n [] = []
@@ -245,18 +201,18 @@ showDirection (True, False) = "<=="
 showDirection (False, True) = "==>"
 showDirection _ = "Invalid"
 
-viewTrainList :: Maybe RakeID -> [RakeID] -> SelectableDiagram
-viewTrainList mSelectedRake rakes = vcat $ map viewTrain rakes
- where viewTrain :: RakeID -> SelectableDiagram
-       viewTrain rakeID = value [SelectRake rakeID] $ simpleTextBox bgCol $ show rakeID
+viewSheetList :: Maybe SheetName -> [SheetName] -> SelectableDiagram
+viewSheetList mSelectedSheet sheets = center $ hcat $ map viewSheet sheets
+ where viewSheet :: SheetName -> SelectableDiagram
+       viewSheet sheet = value [SelectSheet sheet] $ simpleTextBox bgCol $ show sheet
         where bgCol 
-                  | mSelectedRake == Just rakeID = skyblue
+                  | mSelectedSheet == Just sheet = skyblue
                   | otherwise = white
 
 simpleTextBox :: Colour Double -> String -> NormalDiagram
 simpleTextBox bgCol contents = mconcat
     [ text contents # fc black # lw none
-    , rect 8 2 # fc bgCol # lc black
+    , rect 9 2 # fc bgCol # lc black
     ]
 
 textBox
@@ -284,8 +240,8 @@ bitBox
     -> Bool
     -> NormalDiagram
 bitBox title bit = mconcat
-    [ text title # fc black # lw none
-    , rect 10 3 # fc col # lw none
+    [ scale 0.5 $ text title # fc black # lw none
+    , rect 9 1.5 # fc col # lw veryThin # lc black
     ]
  where col | bit = yellow
            | otherwise = gray
@@ -294,11 +250,11 @@ updateWithTimer :: (SDL.Scancode -> Bool) -> Model -> Model
 updateWithTimer isPressed model = model { scHealthCounter = scHealthCounter model - 1 }
 
 updateWithClick :: Button -> Model -> Model
-updateWithClick (SelectRake rakeID) model = model {selectedRakeID = Just rakeID}
+updateWithClick (SelectSheet sheet) model = model {selectedSheet = Just sheet}
 -- updateWithClick (SelectRake rakeID) (MkModel _ sys1net1 sys1net2 sys2net1 sys2net2) = MkModel (Just rakeID) sys1net1 sys1net2 sys2net1 sys2net2
 
 data Button
-    = SelectRake RakeID
+    = SelectSheet SheetName
 
 updateWithKeyPress :: SDL.Keycode -> Model -> Model
 updateWithKeyPress _ model = model
@@ -340,12 +296,20 @@ screenWidth = 1920
 screenHeight :: Num a => a
 screenHeight = 1080
 
+csvFileLocation :: FilePath
+csvFileLocation = "C:/Users/haske/Desktop/haskell/OC-purser/Sample_JLA_20170626.csv"
+
 mainApp :: IO ()
 mainApp = do
     -- 編集の初期化
+    str <- readFile csvFileLocation
+    Right assignments <- return $ (P.parse parseAssignmentFile "" str :: Either P.ParseError [(String, SheetName, Int)])
     vModel <- newMVar initialModel
     vRender <- newMVar $ view initialModel
-    forkIO $ mainUdpReceiver vModel
+    forkIO $ mainUdpReceiver "58198" getOC2ATS1 assignments vModel 
+    forkIO $ mainUdpReceiver "58197" getOC2ATS2 assignments vModel
+    forkIO $ mainUdpReceiver "58196" getOC2ATS3 assignments vModel
+
 
     -- SDL初期化
     SDL.initialize [ SDL.InitVideo ]
@@ -391,7 +355,7 @@ mainApp = do
                     model <- readMVar vModel
 --                     putStrLn $ show $ triangleClickCount model
                     let selectableDiagram :: SelectableDiagram
-                        selectableDiagram = toSDLCoord $ scale 10 $ view model
+                        selectableDiagram = toSDLCoord $ view model
 
                     SDL.surfaceFillRect sdlSurface Nothing whiteRect
                     Cairo.renderWith cairoSurface $ Cairo.toRender mempty $ clearValue selectableDiagram
@@ -416,7 +380,9 @@ mainApp = do
                     let SDL.Keysym _ key SDL.KeyModifier{..} = keyboardEventKeysym
                     modifyMVarPure_ vModel $ updateWithKeyPress key
                     pushCustomEvent CustomExposeEvent
-                    loop
+                    if key == SDL.KeycodeQ
+                        then return ()
+                        else loop
                 SDL.QuitEvent       -> return ()
                 _                   -> loop
     loop

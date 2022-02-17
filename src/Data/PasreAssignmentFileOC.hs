@@ -11,6 +11,7 @@ import qualified Data.Bits as B
 import Data.Array
 import Control.Applicative
 
+import Data.List
 import Data.Map (Map)
 import qualified Data.Map as M
 
@@ -56,10 +57,52 @@ getOC2ATS1 = do
         , (Pulse, pulse)
         ]
 
+getOC2ATS2 :: Get (Map SheetName ByteString)
+getOC2ATS2 = do
+    Serial.skip 76
+    lo <- Serial.getBytes 196
+    so <- Serial.getBytes 106
+    sram <- Serial.getBytes 54
+    mem <- Serial.getBytes 512
+    return $ M.fromList
+        [ (Lo, lo)
+        , (So, so)
+        , (SRAM, sram)
+        , (Mem, mem)
+        ]
 
-decodeOC2ATS1 :: ByteString -> Map SheetName ByteString
-decodeOC2ATS1 bstr = undefined
-
+getOC2ATS3 :: Get (Map SheetName ByteString)
+getOC2ATS3 = do
+    Serial.skip 76
+    i1 <- Serial.getBytes 24
+    i2 <- Serial.getBytes 24
+    i3 <- Serial.getBytes 24
+    i4 <- Serial.getBytes 24
+    i5 <- Serial.getBytes 24
+    i6 <- Serial.getBytes 24
+    o1 <- Serial.getBytes 24
+    o2 <- Serial.getBytes 24
+    o3 <- Serial.getBytes 24
+    o4 <- Serial.getBytes 24
+    o5 <- Serial.getBytes 24
+    o6 <- Serial.getBytes 24
+    alt <- Serial.getBytes 896
+    return $ M.fromList
+        [ (I1, i1)
+        , (I2, i2)
+        , (I3, i3)
+        , (I4, i4)
+        , (I5, i5)
+        , (I6, i6)
+        , (O1, o1)
+        , (O2, o2)
+        , (O3, o3)
+        , (O4, o4)
+        , (O5, o5)
+        , (O6, o6)
+        , (Alt, alt)
+        ]
+   
 parseSheetName :: Parser SheetName
 parseSheetName = do
     n <- P.int
@@ -106,13 +149,42 @@ parseLine = do
     sheet <-  parseSheetName
     P.char ','
     pos <- P.int
-    return (str, sheet, pos)
+    return (str, sheet, pos - 1)
 
-toBitStatusOC3ATS1 :: [(String, SheetName, Int)] -> Map SheetName ByteString -> Map SheetName [(String, Bool)]
-toBitStatusOC3ATS1 = undefined
+toBitStatus :: [(String, SheetName, Int)] -> Map SheetName ByteString -> Map SheetName [(String, Bool)]
+toBitStatus assignments sheets = M.intersectionWith testBits sheets assignmentPerSheet
+ where assignmentPerSheet :: Map SheetName [(String, Int)]
+       assignmentPerSheet = allotMap $ map toKeyValuePair assignments
+        where toKeyValuePair :: (String, SheetName, Int) -> (SheetName, (String, Int)) 
+              toKeyValuePair (str, sheet, n) = (sheet,(str, n))
+
+allotMap :: Ord k => [(k, val)] -> Map k [val]
+allotMap as = foldl' f mempty as
+ where f mp (k, val) = M.insertWith (++) k [val] mp
+ 
+testBits :: ByteString -> [(String, Int)] -> [(String, Bool)]
+testBits bstr assignments = map testOneBit assignments
+ where testOneBit :: (String, Int) -> (String, Bool)
+       testOneBit (str, n) = (str, b)
+        where b = B.testBit (BS.index bstr q) r
+              (q, r) = n `quotRem` 8
+
+
+-- M.intersectionWith :: Ord k => (a -> b -> c) -> Map k a -> Map k b -> Map k c
+-- M.insertWith :: Ord k => (a -> a -> a) -> k -> a -> Map k a -> Map k a
+
+-- testBit :: Word8 -> Int -> Bool
+-- index :: HasCallStack => ByteString -> Int -> Word8
+
+-- singleton
+
+
+-- quotRem :: Integral => a -> (a, a)
+-- ↑あまりの定義が負の場合 remとmodで異なる
 
 -- (!) :: Int -> ByteString -> Word8
--- testBit :: Bits a => a -> Int -> Bool
+
+
 
 data SheetName
     = I1
@@ -144,5 +216,7 @@ data SheetName
     | Mem
     | Alt
     deriving (Show, Eq, Ord, Enum, Bounded, Ix)
+
+
 
 
