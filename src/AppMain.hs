@@ -141,8 +141,13 @@ openSockUdpReceiver port = do
 -- Model, view, update
 ----------------------------------------
 
+numOfBitsVertical :: Int
+numOfBitsVertical = 40
+
+
 data Model = MkModel
-    { selectedSheet :: Maybe SheetName
+    { selectedSheet :: SheetName
+    , scrollCount :: Int
     , sys1net1 :: Map SheetName [(String, Bool)]
     , sys1net2 :: Map SheetName [(String, Bool)]
     , sys2net1 :: Map SheetName [(String, Bool)]
@@ -152,7 +157,8 @@ data Model = MkModel
 
 initialModel :: Model
 initialModel = MkModel
-    { selectedSheet   = Nothing
+    { selectedSheet   = I1
+    , scrollCount     = 0
     , sys1net1        = mempty
     , sys1net2        = mempty
     , sys2net1        = mempty
@@ -167,29 +173,23 @@ view MkModel{..} = center $ mconcat $ map alignT
     ]
  where contents = center $ vcat
            [ sheetList 
-           , sheetDiagram
+           , sized (mkHeight $ screenHeight - height sheetList) sheetDiagram
            ]
-       sheetDiagram = value [] $ sized (mkWidth $ width sheetList) $ case selectedBits of
-           Just bits -> viewSheet bits
-           Nothing -> mconcat
-               [ text "Please Select Sheet"
-               , phantom (rect 20 2 :: NormalDiagram)
-               ]
+       sheetDiagram = value [] $ viewSheet selectedBits
        sheetList :: SelectableDiagram
-       sheetList = viewSheetList selectedSheet [I1 ..]
-       selectedBits :: Maybe [(SourceID, [(String, Bool)])]
-       selectedBits = do
-           sheet <- selectedSheet
-           let bits1_1 = M.lookup sheet sys1net1 :: Maybe [(String, Bool)]
-           let bits1_2 = M.lookup sheet sys1net2
-           let bits2_1 = M.lookup sheet sys2net1
-           let bits2_2 = M.lookup sheet sys2net2
-           let addSourceID :: SourceID -> Maybe [(String, Bool)] -> Maybe (SourceID, [(String, Bool)])
-               addSourceID srcID mbits = fmap (srcID ,) mbits
-               bss = catMaybes $ zipWith addSourceID [Sys1Net1 ..] [bits1_1, bits1_2, bits2_1, bits2_2]
+       sheetList = sized (mkWidth $ width screenRect) $ viewSheetList selectedSheet [I1 ..]
+       selectedBits :: [(SourceID, [(String, Bool)])]
+       selectedBits = map scroll $ catMaybes $ zipWith addSourceID [Sys1Net1 ..] [bits1_1, bits1_2, bits2_1, bits2_2]
+        where bits1_1 = M.lookup selectedSheet sys1net1 
+              bits1_2 = M.lookup selectedSheet sys1net2
+              bits2_1 = M.lookup selectedSheet sys2net1
+              bits2_2 = M.lookup selectedSheet sys2net2
+              addSourceID :: SourceID -> Maybe [(String, Bool)] -> Maybe (SourceID, [(String, Bool)])
+              addSourceID srcID mbits = fmap (srcID ,) mbits
+              scroll :: (SourceID, [(String, Bool)]) -> (SourceID, [(String, Bool)])
+              scroll (srcID, bs) = ( srcID,  take numOfBitsVertical $  drop (scrollCount * 10 ) bs )
 --                fmap (1 +) (Just 1) ==> Just (1 + 1) ==> Just 2
 --                fmap (1 ,) (Just 1) ==> Just (1 , 1)
-           return bss
        bgCol :: Colour Double
        bgCol
            | scHealthCounter < 0 = red
@@ -204,7 +204,17 @@ viewSheet bss = center $ hcat $ map viewOneSource bss
         where title :: NormalDiagram
               title = colorBox (show srcID) mintcream
               bitBoxs :: NormalDiagram
-              bitBoxs = vcat $ map (uncurry bitBox) bs 
+              bitBoxs = vcat $ take numOfBitsVertical $ map (uncurry bitBox) bs ++ repeat (colorBox "" white)
+
+viewScrollBar = undefined
+
+scrollBarBg = undefined
+
+scrollBarWith :: Double
+scrollBarWith = 1
+
+scrollBarHeight :: Double
+scrollBarHeight = 100
 
 toTable :: Int -> [a] -> [[a]]
 toTable n [] = []
@@ -216,12 +226,12 @@ showDirection (True, False) = "<=="
 showDirection (False, True) = "==>"
 showDirection _ = "Invalid"
 
-viewSheetList :: Maybe SheetName -> [SheetName] -> SelectableDiagram
-viewSheetList mSelectedSheet sheets = center $ hcat $ map viewSheet sheets
+viewSheetList :: SheetName -> [SheetName] -> SelectableDiagram
+viewSheetList selectedSheet sheets = center $ hcat $ map viewSheet sheets
  where viewSheet :: SheetName -> SelectableDiagram
        viewSheet sheet = value [SelectSheet sheet] $ simpleTextBox bgCol $ show sheet
         where bgCol 
-                  | mSelectedSheet == Just sheet = skyblue
+                  | selectedSheet == sheet = skyblue
                   | otherwise = white
 
 simpleTextBox :: Colour Double -> String -> NormalDiagram
@@ -271,14 +281,26 @@ updateWithTimer :: (SDL.Scancode -> Bool) -> Model -> Model
 updateWithTimer isPressed model = model { scHealthCounter = scHealthCounter model - 1 }
 
 updateWithClick :: Button -> Model -> Model
-updateWithClick (SelectSheet sheet) model = model {selectedSheet = Just sheet}
+updateWithClick (SelectSheet sheet) model = model {selectedSheet = sheet}
 -- updateWithClick (SelectRake rakeID) (MkModel _ sys1net1 sys1net2 sys2net1 sys2net2) = MkModel (Just rakeID) sys1net1 sys1net2 sys2net1 sys2net2
 
 data Button
     = SelectSheet SheetName
 
 updateWithKeyPress :: SDL.Keycode -> Model -> Model
+updateWithKeyPress SDL.KeycodeUp model = model { scrollCount = max 0 ( scrollCount model - 1 ) }
+updateWithKeyPress SDL.KeycodeDown model = model { scrollCount = scrollCount model + 1 }
+updateWithKeyPress SDL.KeycodeRight model = model { selectedSheet = nectSheet $ selectedSheet model }
+updateWithKeyPress SDL.KeycodeLeft model = model { selectedSheet = previounsSheet $ selectedSheet model }
 updateWithKeyPress _ model = model
+
+nectSheet :: SheetName -> SheetName
+nectSheet Alt = Alt 
+nectSheet sheet = succ sheet
+
+previounsSheet :: SheetName -> SheetName
+previounsSheet I1 = I1
+previounsSheet sheet = pred sheet
 
 ----------------------------------------
 -- GUIのあれこれ
