@@ -70,6 +70,7 @@ data SourceID
     | Sys1Net2
     | Sys2Net1
     | Sys2Net2
+    deriving (Show, Eq, Ord, Enum, Bounded)
 
 sockAddrToSourceID :: N.SockAddr -> Maybe SourceID
 sockAddrToSourceID (N.SockAddrInet _ addr) = ipv4AddrToSourceID addr
@@ -81,9 +82,9 @@ refreshScHealthCounter model = model { scHealthCounter = 10 }
 
 updateModelWithHostName :: SourceID -> Map SheetName [(String, Bool)] -> Model -> Model
 updateModelWithHostName Sys1Net1 ocStatus model = model { sys1net1 = sys1net1 model `M.union` ocStatus }
--- updateModelWithHostName Sys1Net2 trainInfo model = model { sys1net2 = Just trainInfo } 
--- updateModelWithHostName Sys2Net1 trainInfo model = model { sys2net1 = Just trainInfo }
--- updateModelWithHostName Sys2Net2 trainInfo model = model { sys2net2 = Just trainInfo }
+updateModelWithHostName Sys1Net2 ocStatus model = model { sys1net2 = sys1net2 model `M.union` ocStatus } 
+updateModelWithHostName Sys2Net1 ocStatus model = model { sys2net1 = sys2net1 model `M.union` ocStatus }
+updateModelWithHostName Sys2Net2 ocStatus model = model { sys2net2 = sys2net2 model `M.union` ocStatus }
 
 ipv4AddrToSourceID :: Word32 -> Maybe SourceID
 ipv4AddrToSourceID ipAddr
@@ -143,9 +144,9 @@ openSockUdpReceiver port = do
 data Model = MkModel
     { selectedSheet :: Maybe SheetName
     , sys1net1 :: Map SheetName [(String, Bool)]
---     , sys1net2 :: Map SheetName [(String, Bool)]
---     , sys2net1 :: Map SheetName [(String, Bool)]
---     , sys2net2 :: Map SheetName [(String, Bool)]
+    , sys1net2 :: Map SheetName [(String, Bool)]
+    , sys2net1 :: Map SheetName [(String, Bool)]
+    , sys2net2 :: Map SheetName [(String, Bool)]
     , scHealthCounter :: Int
     } deriving (Show)
 
@@ -153,9 +154,9 @@ initialModel :: Model
 initialModel = MkModel
     { selectedSheet   = Nothing
     , sys1net1        = mempty
---     , sys1net2        = mempty
---     , sys2net1        = mempty
---     , sys2net2        = mempty
+    , sys1net2        = mempty
+    , sys2net1        = mempty
+    , sys2net2        = mempty
     , scHealthCounter = -1
     }
 
@@ -176,11 +177,19 @@ view MkModel{..} = center $ mconcat $ map alignT
                ]
        sheetList :: SelectableDiagram
        sheetList = viewSheetList selectedSheet [I1 ..]
-       selectedBits :: Maybe (SheetName, [(String, Bool)])
+       selectedBits :: Maybe [(SourceID, [(String, Bool)])]
        selectedBits = do
            sheet <- selectedSheet
-           bits <- M.lookup sheet sys1net1
-           return (sheet, bits)
+           let bits1_1 = M.lookup sheet sys1net1 :: Maybe [(String, Bool)]
+           let bits1_2 = M.lookup sheet sys1net2
+           let bits2_1 = M.lookup sheet sys2net1
+           let bits2_2 = M.lookup sheet sys2net2
+           let addSourceID :: SourceID -> Maybe [(String, Bool)] -> Maybe (SourceID, [(String, Bool)])
+               addSourceID srcID mbits = fmap (srcID ,) mbits
+               bss = catMaybes $ zipWith addSourceID [Sys1Net1 ..] [bits1_1, bits1_2, bits2_1, bits2_2]
+--                fmap (1 +) (Just 1) ==> Just (1 + 1) ==> Just 2
+--                fmap (1 ,) (Just 1) ==> Just (1 , 1)
+           return bss
        bgCol :: Colour Double
        bgCol
            | scHealthCounter < 0 = red
@@ -188,8 +197,14 @@ view MkModel{..} = center $ mconcat $ map alignT
        screenRect :: NormalDiagram
        screenRect = rect screenWidth screenHeight # bg bgCol
 
-viewSheet :: (SheetName, [(String, Bool)]) -> NormalDiagram
-viewSheet (sheetName, bs) = center $ vcat $ map hcat $ toTable 16 $ map (uncurry bitBox) bs
+viewSheet :: [(SourceID, [(String, Bool)])] -> NormalDiagram
+viewSheet bss = center $ hcat $ map viewOneSource bss
+ where viewOneSource :: (SourceID, [(String, Bool)]) -> NormalDiagram
+       viewOneSource (srcID, bs) = vcat [title ,bitBoxs]
+        where title :: NormalDiagram
+              title = colorBox (show srcID) mintcream
+              bitBoxs :: NormalDiagram
+              bitBoxs = vcat $ map (uncurry bitBox) bs 
 
 toTable :: Int -> [a] -> [[a]]
 toTable n [] = []
@@ -239,13 +254,19 @@ bitBox
     :: String -- ^ タイトル
     -> Bool
     -> NormalDiagram
-bitBox title bit = mconcat
+bitBox title bit = colorBox title col
+ where col | bit = yellow
+           | otherwise = gray
+
+colorBox
+    :: String -- ^ タイトル
+    -> Colour Double
+    -> NormalDiagram
+colorBox title col = mconcat
     [ scale 0.5 $ text title # fc black # lw none
     , rect 9 1.5 # fc col # lw veryThin # lc black
     ]
- where col | bit = yellow
-           | otherwise = gray
-              
+
 updateWithTimer :: (SDL.Scancode -> Bool) -> Model -> Model
 updateWithTimer isPressed model = model { scHealthCounter = scHealthCounter model - 1 }
 

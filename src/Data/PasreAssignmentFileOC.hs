@@ -61,7 +61,7 @@ getOC2ATS2 :: Get (Map SheetName ByteString)
 getOC2ATS2 = do
     Serial.skip 76
     lo <- Serial.getBytes 196
-    so <- Serial.getBytes 106
+    so <- Serial.getBytes 128
     sram <- Serial.getBytes 54
     mem <- Serial.getBytes 512
     return $ M.fromList
