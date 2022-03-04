@@ -30,6 +30,7 @@ import Data.Maybe (listToMaybe, mapMaybe, catMaybes, fromMaybe)
 import qualified Text.Parsec as P
 
 -- bytestring
+
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 
@@ -53,6 +54,9 @@ import qualified Data.Map as M
 
 import Test.QuickCheck hiding (sample, scale, sized)
 import Test.QuickCheck.Arbitrary.Generic (genericArbitrary, genericShrink)
+
+-- lens
+import Control.Lens hiding ((#), view, none)
 
 -- network
 import Network.Socket (Socket, SockAddr)
@@ -141,8 +145,7 @@ openSockUdpReceiver port = do
 -- Model, view, update
 ----------------------------------------
 
-numOfBitsVertical :: Int
-numOfBitsVertical = 40
+
 
 
 data Model = MkModel
@@ -166,6 +169,10 @@ initialModel = MkModel
     , scHealthCounter = -1
     }
 
+maximumMay :: Ord a => [a] -> Maybe a
+maximumMay [] = Nothing
+maximumMay xs = Just $ maximum xs
+
 view :: Model -> SelectableDiagram
 view MkModel{..} = center $ mconcat $ map alignT
     [ contents # sizedAs screenRect
@@ -173,21 +180,30 @@ view MkModel{..} = center $ mconcat $ map alignT
     ]
  where contents = center $ vcat
            [ sheetList 
-           , sized (mkHeight $ screenHeight - height sheetList) sheetDiagram
+           , center $ hcat [sheetDiagram, scrollBar]
            ]
-       sheetDiagram = value [] $ viewSheet selectedBits
+       scrollBar :: SelectableDiagram
+       scrollBar = value [] $ sized (mkHeight h) $ viewScrollBar scrollCount allBitsCount
+       h :: Double
+       h = screenHeight - height sheetList
+       allBitsCount :: Int
+       allBitsCount = fromMaybe 0 $ maximumMay $ map length $ catMaybes [bits1_1, bits1_2, bits2_1, bits2_2]
+      
+       sheetDiagram = value [] $ sized (mkHeight h) $ viewSheet selectedBits
        sheetList :: SelectableDiagram
        sheetList = sized (mkWidth $ width screenRect) $ viewSheetList selectedSheet [I1 ..]
+
+       bits1_1 = M.lookup selectedSheet sys1net1 
+       bits1_2 = M.lookup selectedSheet sys1net2
+       bits2_1 = M.lookup selectedSheet sys2net1
+       bits2_2 = M.lookup selectedSheet sys2net2
+
        selectedBits :: [(SourceID, [(String, Bool)])]
        selectedBits = map scroll $ catMaybes $ zipWith addSourceID [Sys1Net1 ..] [bits1_1, bits1_2, bits2_1, bits2_2]
-        where bits1_1 = M.lookup selectedSheet sys1net1 
-              bits1_2 = M.lookup selectedSheet sys1net2
-              bits2_1 = M.lookup selectedSheet sys2net1
-              bits2_2 = M.lookup selectedSheet sys2net2
-              addSourceID :: SourceID -> Maybe [(String, Bool)] -> Maybe (SourceID, [(String, Bool)])
+        where addSourceID :: SourceID -> Maybe [(String, Bool)] -> Maybe (SourceID, [(String, Bool)])
               addSourceID srcID mbits = fmap (srcID ,) mbits
               scroll :: (SourceID, [(String, Bool)]) -> (SourceID, [(String, Bool)])
-              scroll (srcID, bs) = ( srcID,  take numOfBitsVertical $  drop (scrollCount * 10 ) bs )
+              scroll (srcID, bs) = ( srcID,  take numOfBitsVertical $  drop (scrollCount * numOfBitsVertical ) bs )
 --                fmap (1 +) (Just 1) ==> Just (1 + 1) ==> Just 2
 --                fmap (1 ,) (Just 1) ==> Just (1 , 1)
        bgCol :: Colour Double
@@ -206,15 +222,31 @@ viewSheet bss = center $ hcat $ map viewOneSource bss
               bitBoxs :: NormalDiagram
               bitBoxs = vcat $ take numOfBitsVertical $ map (uncurry bitBox) bs ++ repeat (colorBox "" white)
 
-viewScrollBar = undefined
+viewScrollBar :: Int -> Int -> NormalDiagram
+viewScrollBar scrollCount allBitsCount
+    | allBitsCount <= numOfBitsVertical = scrollBarBgRect
+    | otherwise = center $ mconcat
+        [ translateY (- vShift) $ alignT thumb
+        , alignT scrollBarBgRect
+        ]
+ where thumb :: NormalDiagram
+       thumb = rect scrollBarWidth thumbHeight # fc gray
+       thumbHeight :: Double
+       thumbHeight = fromIntegral numOfBitsVertical / fromIntegral allBitsCount * scrollBarHeight
+       vShift :: Double
+       vShift = fromIntegral (scrollCount * numOfBitsVertical) / fromIntegral allBitsCount * scrollBarHeight
+       
 
-scrollBarBg = undefined
-
-scrollBarWith :: Double
-scrollBarWith = 1
-
+scrollBarBgRect :: NormalDiagram
+scrollBarBgRect = rect scrollBarWidth scrollBarHeight # fc lightgray
+scrollBarWidth :: Double
+scrollBarWidth = 1
 scrollBarHeight :: Double
-scrollBarHeight = 100
+scrollBarHeight = 50
+
+numOfBitsVertical :: Int
+numOfBitsVertical = 40
+
 
 toTable :: Int -> [a] -> [[a]]
 toTable n [] = []
@@ -290,8 +322,8 @@ data Button
 updateWithKeyPress :: SDL.Keycode -> Model -> Model
 updateWithKeyPress SDL.KeycodeUp model = model { scrollCount = max 0 ( scrollCount model - 1 ) }
 updateWithKeyPress SDL.KeycodeDown model = model { scrollCount = scrollCount model + 1 }
-updateWithKeyPress SDL.KeycodeRight model = model { selectedSheet = nectSheet $ selectedSheet model }
-updateWithKeyPress SDL.KeycodeLeft model = model { selectedSheet = previounsSheet $ selectedSheet model }
+updateWithKeyPress SDL.KeycodeRight model = model { scrollCount = 0, selectedSheet = nectSheet $ selectedSheet model }
+updateWithKeyPress SDL.KeycodeLeft model = model { scrollCount = 0, selectedSheet = previounsSheet $ selectedSheet model }
 updateWithKeyPress _ model = model
 
 nectSheet :: SheetName -> SheetName
@@ -452,3 +484,5 @@ whiteRect = SDL.V4 maxBound maxBound maxBound maxBound
 
 alphaRect :: SDL.V4 Word8
 alphaRect = SDL.V4 maxBound maxBound maxBound minBound
+
+$(makeLenses  ''Model)
