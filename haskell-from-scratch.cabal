@@ -38,6 +38,9 @@ library
                      , sdl2
                      , iproute
                      , lens
+                     , text
+                     , filepath
+                     , directory
 
   ghc-options:         -fwarn-incomplete-patterns -fwarn-missing-signatures -optl-mconsole
   default-extensions:  GADTSyntax
@@ -51,6 +54,7 @@ library
                        , LambdaCase
                        , OverloadedStrings
                        , TemplateHaskell
+                       , MultiWayIf
 --   other-extensions:    NoImplicitPrelude
   default-language:    Haskell2010
 

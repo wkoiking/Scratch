@@ -12,6 +12,8 @@ import Data.List ( splitAt )
 -- sdl2
 import qualified SDL as SDL
 import qualified SDL.Input.Keyboard.Codes as SDL
+import qualified SDL.Raw.Event as SDLE (startTextInput)
+
 -- cairo
 import qualified Graphics.Rendering.Cairo as Cairo
 -- diagrams-cairo
@@ -20,11 +22,20 @@ import Diagrams.Backend.Cairo as Cairo
 import Diagrams.Prelude hiding (view, Vector, (*^), (^+^), (^-^), signorm)
 import Diagrams.TwoD.Text (text)
 
+-- text
+import qualified Data.Text as T (unpack) -- Text -> String
+
 -- base
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newMVar, readMVar, swapMVar, modifyMVar_) -- (newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Int (Int32)
 import Data.Maybe (listToMaybe, mapMaybe, catMaybes, fromMaybe)
+
+-- directory
+import System.Directory (listDirectory)
+
+-- filepath
+import System.FilePath (takeExtension, (</>))
 
 -- parsec
 import qualified Text.Parsec as P
@@ -156,6 +167,7 @@ data Model = MkModel
     , sys2net1 :: Map SheetName [(String, Bool)]
     , sys2net2 :: Map SheetName [(String, Bool)]
     , scHealthCounter :: Int
+    , searchString :: String -- 検索用
     } deriving (Show)
 
 initialModel :: Model
@@ -167,6 +179,7 @@ initialModel = MkModel
     , sys2net1        = mempty
     , sys2net2        = mempty
     , scHealthCounter = -1
+    , searchString     = ""
     }
 
 maximumMay :: Ord a => [a] -> Maybe a
@@ -183,7 +196,7 @@ view MkModel{..} = center $ mconcat $ map alignT
            , center $ hcat [sheetDiagram, scrollBar]
            ]
        scrollBar :: SelectableDiagram
-       scrollBar = value [] $ sized (mkHeight h) $ viewScrollBar scrollCount allBitsCount
+       scrollBar = value [] $ sized (mkHeight h) $ hcat [viewScrollBar scrollCount allBitsCount, simpleTextBox white searchString]
        h :: Double
        h = screenHeight - height sheetList
        allBitsCount :: Int
@@ -372,12 +385,15 @@ screenHeight :: Num a => a
 screenHeight = 1080
 
 csvFileLocation :: FilePath
-csvFileLocation = "C:/Users/haske/Desktop/haskell/OC-purser/Sample_JLA_20170626.csv"
+csvFileLocation = "C:/Users/haske/Desktop/haskell/OC-purser"
+-- CSVファイルはリストで
 
 mainApp :: IO ()
 mainApp = do
     -- 編集の初期化
-    str <- readFile csvFileLocation
+    files <- listDirectory csvFileLocation
+    Just filename <- return $ find ((".csv" ==) . takeExtension) files
+    str <- readFile $ csvFileLocation </> filename
     Right assignments <- return $ (P.parse parseAssignmentFile "" str :: Either P.ParseError [(String, SheetName, Int)])
     vModel <- newMVar initialModel
     vRender <- newMVar $ view initialModel
@@ -451,15 +467,37 @@ mainApp = do
                             pushCustomEvent CustomExposeEvent
                             loop
                         _           -> loop
+
+                SDL.MouseWheelEvent SDL.MouseWheelEventData{..} -> do
+                    modifyMVarPure_ vModel $ if
+                        | y > 0     -> updateWithKeyPress SDL.KeycodeUp
+                        | y < 0     -> updateWithKeyPress SDL.KeycodeDown
+                        | otherwise -> id
+                    pushCustomEvent CustomExposeEvent
+                    loop
+                 where V2 _ y = mouseWheelEventPos
                 SDL.KeyboardEvent SDL.KeyboardEventData{..} | keyboardEventKeyMotion == SDL.Pressed -> do
                     let SDL.Keysym _ key SDL.KeyModifier{..} = keyboardEventKeysym
                     modifyMVarPure_ vModel $ updateWithKeyPress key
+                    let updateByBackspace :: Model -> Model
+                        updateByBackspace model = model { searchString = take (length str - 1) str}
+                         where str = searchString model
+                    when (SDL.KeycodeBackspace == key) $ modifyMVarPure_ vModel updateByBackspace
+
                     pushCustomEvent CustomExposeEvent
-                    if key == SDL.KeycodeQ
-                        then return ()
-                        else loop
+                    loop
+--                     if key == SDL.KeycodeQ
+--                         then return ()
+--                         else loop
+                SDL.TextInputEvent SDL.TextInputEventData{..} -> do
+                    let updateByTextInput :: Model -> Model
+                        updateByTextInput model = model { searchString = searchString model ++ T.unpack textInputEventText }
+                    modifyMVarPure_ vModel updateByTextInput
+                    pushCustomEvent CustomExposeEvent
+                    loop
                 SDL.QuitEvent       -> return ()
                 _                   -> loop
+    SDLE.startTextInput
     loop
     putStrLn "Exitting"
 
