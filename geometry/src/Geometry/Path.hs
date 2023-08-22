@@ -118,6 +118,9 @@ instance Wrapped (Path v n) where
   _Wrapped' = _Path . _Wrapped'
   {-# INLINE _Wrapped' #-}
 
+-- instance Eq1 v => Eq1 (Path v) where
+--     liftEq eq (Path s1) (Path s2) = liftEq (liftEq eq) (F.toList s1) (F.toList s2)
+
 instance Each (Path v n) (Path v' n') (Located (Trail v n)) (Located (Trail v' n')) where
   each = _Path . traversed
   {-# INLINE each #-}
@@ -200,7 +203,7 @@ instance NFData (v n) => NFData (Path v n) where
   rnf (Path ts) = rnf ts
   {-# INLINE rnf #-}
 
-instance (Hashable1 v, Hashable n) => Hashable (Path v n) where
+instance (Hashable1 v, Hashable n, Eq (v n)) => Hashable (Path v n) where
   hashWithSalt s0 (Path ts) =
     F.foldl' (\s a -> hashWithSalt s a) s0 ts
       `hashWithSalt` Seq.length ts

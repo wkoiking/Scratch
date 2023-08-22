@@ -22,7 +22,8 @@ module Geometry.TwoD.Transform
   (
     T2
     -- * Rotation
-  , rotation, rotate, rotateBy, rotated
+  , rotation, rotate, rotateBy
+--   , rotated
   , rotationAround, rotateAround
   , rotationTo, rotateTo
 
@@ -111,10 +112,10 @@ rotateBy = transform . rotation . review turn
 -- a ^. rotated t      = rotate (-t) a
 -- over (rotated t) f  = rotate t . f . rotate (negated t)
 -- @
-rotated :: (InSpace V2 n a, Floating n, SameSpace a b, Transformable a, Transformable b)
-        => Angle n -> Iso a b a b
-rotated = transformed . rotation
-{-# INLINE rotated #-}
+-- rotated :: (InSpace V2 n a, Floating n, SameSpace a b, Transformable a, Transformable b)
+--         => Angle n -> Iso a b a b
+-- rotated = transformed . rotation
+-- {-# INLINE rotated #-}
 
 -- | @rotationAbout p@ is a rotation about the point @p@ (instead of
 --   around the local origin).

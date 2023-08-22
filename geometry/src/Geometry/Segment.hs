@@ -156,6 +156,12 @@ instance (Eq1 v, Eq n) => Eq (Segment v n) where
   _              == _              = False
   {-# INLINE (==) #-}
 
+instance Eq1 v => Eq1 (Segment v) where
+    liftEq eq (Linear v1) (Linear v2) = liftEq eq v1 v2
+    liftEq eq (Cubic a1 b1 c1) (Cubic a2 b2 c2) = liftEq eq a1 a2 && liftEq eq b1 b2 && liftEq eq c1 c2
+    liftEq _ _ _ = False
+    {-# INLINE liftEq #-}
+    
 instance Show1 v => Show1 (Segment v) where
   liftShowsPrec x y d seg = case seg of
     Linear v       -> showParen (d > 10) $
@@ -179,7 +185,7 @@ instance NFData (v n) => NFData (Segment v n) where
     Cubic c1 c2 c3 -> rnf c1 `seq` rnf c2 `seq` rnf c3
   {-# INLINE rnf #-}
 
-instance Hashable1 v => Hashable1 (Segment v) where
+instance (Hashable1 v, Eq1 (Segment v)) => Hashable1 (Segment v) where
   liftHashWithSalt f s = \case
     Linear v       -> hws s0 v
     Cubic c1 c2 c3 -> hws (hws (hws s1 c1) c2) c3
@@ -189,7 +195,7 @@ instance Hashable1 v => Hashable1 (Segment v) where
       hws = liftHashWithSalt f
   {-# INLINE liftHashWithSalt #-}
 
-instance (Hashable1 v, Hashable n) => Hashable (Segment v n) where
+instance (Hashable1 v, Hashable n, Eq1 (Segment v)) => Hashable (Segment v n) where
   hashWithSalt = hashWithSalt1
   {-# INLINE hashWithSalt #-}
 
@@ -749,6 +755,12 @@ instance (Eq1 v, Eq n) => Eq (ClosingSegment v n) where
   _                  ==     _              = False
   {-# INLINE (==) #-}
 
+instance Eq1 v => Eq1 (ClosingSegment v) where
+    liftEq _ LinearClosing LinearClosing = True
+    liftEq eq (CubicClosing b1 c1) (CubicClosing b2 c2) = liftEq eq b1 b2 && liftEq eq c1 c2
+    liftEq _ _ _ = False
+    {-# INLINE liftEq #-}
+
 instance Show1 v => Show1 (ClosingSegment v) where
   liftShowsPrec x y d = \case
     LinearClosing      -> showString "linearClosing"
@@ -844,10 +856,22 @@ closingSegment off (CubicClosing c1 c2) = Cubic c1 c2 (negated off)
 data FixedSegment v n
   = FLinear !(Point v n) !(Point v n)
   | FCubic  !(Point v n) !(Point v n) !(Point v n) !(Point v n)
-  deriving (Show, Read, Eq)
+  deriving (Show, Read)
 
 type instance V (FixedSegment v n) = v
 type instance N (FixedSegment v n) = n
+
+instance (Eq1 v, Eq n) => Eq (FixedSegment v n) where
+  FLinear p0 p1 == FLinear p0' p1'      = eq1 p0 p0' && eq1 p1 p1'
+  FCubic p0 p1 p2 p3 == FCubic p0' p1' p2' p3' = eq1 p0 p0' && eq1 p1 p1' && eq1 p2 p2' && eq1 p3 p3'
+  _ == _ = False
+  {-# INLINE (==) #-}
+
+instance Eq1 v => Eq1 (FixedSegment v) where
+    liftEq eq (FLinear p0 p1) (FLinear p0' p1') = liftEq eq p0 p0' && liftEq eq p1 p1'
+    liftEq eq (FCubic p0 p1 p2 p3) (FCubic p0' p1' p2' p3') = liftEq eq p0 p0' && liftEq eq p1 p1' && liftEq eq p2 p2' && liftEq eq p3 p3'
+    liftEq _ _ _ = False
+    {-# INLINE liftEq #-}
 
 instance Each (FixedSegment v n) (FixedSegment v' n') (Point v n) (Point v' n') where
   each f (FLinear p0 p1)      = FLinear <$> f p0 <*> f p1

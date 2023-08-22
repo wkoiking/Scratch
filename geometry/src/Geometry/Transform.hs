@@ -72,7 +72,9 @@ module Geometry.Transform
   , moveTo, place
 
     -- * Miscellaneous transformation-related utilities
-  , conjugate, underT, transformed, translated, movedTo, movedFrom
+  , conjugate, underT, transformed
+--   , translated
+  , movedTo, movedFrom
 
     -- * The HasOrigin class
 
@@ -217,14 +219,14 @@ instance (Foldable v, NFData n) => NFData (Transformation v n) where
       rnfVec = foldMap rnf
       rnfMat = foldMap rnfVec
 
-instance Hashable1 v => Hashable1 (Transformation v) where
+instance (Hashable1 v, Eq1 (Transformation v)) => Hashable1 (Transformation v) where
   liftHashWithSalt f s (T m n v) =
     liftHashWithSalt f (hashMatWithSalt (hashMatWithSalt s m) n) v
     where
       hashMatWithSalt = liftHashWithSalt (liftHashWithSalt f)
   {-# INLINE liftHashWithSalt #-}
 
-instance (Hashable1 v, Hashable n) => Hashable (Transformation v n) where
+instance (Hashable1 v, Hashable n, Eq1 (Transformation v)) => Hashable (Transformation v n) where
   hashWithSalt = hashWithSalt1
   {-# INLINE hashWithSalt #-}
 
@@ -445,7 +447,7 @@ instance (Transformable t, Ord t) => Transformable (S.Set t) where
 instance Transformable a => Transformable [a]
 instance Transformable a => Transformable (Seq a)
 instance Transformable a => Transformable (Tree a)
-instance Transformable a => Transformable (Option a)
+instance Transformable a => Transformable (Maybe a)
 instance Transformable a => Transformable (Map k a)
 instance Transformable a => Transformable (IntMap a)
 instance Transformable a => Transformable (HashMap k a)
@@ -603,8 +605,8 @@ movedFrom p = iso (moveOriginTo (negated p)) (moveOriginTo p)
 -- a ^. translated v      == translate (-v) a
 -- over (translated v) f  == translate v . f . translate (-v)
 -- @
-translated :: (InSpace v n a, HasBasis v, Foldable v, SameSpace a b, Transformable a, Transformable b)
-           => v n -> Iso a b a b
-translated = transformed . translation
-{-# INLINE translated #-}
+-- translated :: (InSpace v n a, HasBasis v, Foldable v, SameSpace a b, Transformable a, Transformable b)
+--            => v n -> Iso a b a b
+-- translated = transformed . translation
+-- {-# INLINE translated #-}
 

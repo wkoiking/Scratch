@@ -87,12 +87,14 @@ instance Backend Cairo where
   data Options Cairo = CairoOptions
           { _cairoSizeSpec   :: SizeSpec V2 Int -- ^ The requested size of the output
           }
-    deriving (Show)
+    deriving (Show, Eq)
 
   backendInfo = const cairoInfo
   renderDiaT opts dia = (sz, t2, r) where
     (sz, t2, dia') = adjustSize2D (opts^.sizeSpec) (default2DAttrs dia # reflectY)
     r = toRender t2 dia'
+
+instance Eq (SizeSpec V2 Int)
 
 instance BackendBuild Cairo where
   saveDiagram' outPath opts d = do

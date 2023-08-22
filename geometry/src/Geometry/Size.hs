@@ -73,7 +73,7 @@ newtype SizeSpec v n = SizeSpec (v (Maybe n))
   deriving (Typeable, Functor, Generic)
 
 -- instance (Hashable1 v, Hashable n) => Hashable (SizeSpec v n) where
-instance (Hashable (v (Maybe n))) => Hashable (SizeSpec v n) where
+instance (Hashable (v (Maybe n)), Eq (SizeSpec v n)) => Hashable (SizeSpec v n) where
   hashWithSalt s (SizeSpec sz) = s `hashWithSalt` sz
 
 type instance V (SizeSpec v n) = v

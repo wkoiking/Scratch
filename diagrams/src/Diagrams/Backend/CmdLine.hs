@@ -83,7 +83,7 @@ import           System.Environment        (getArgs, getProgName)
 import           System.Exit               (ExitCode (..))
 import           System.FilePath           (dropExtension, replaceExtension,
                                             takeDirectory, takeFileName, (</>))
-import           System.FSNotify           (WatchConfig (..), defaultConfig,
+import           System.FSNotify           (WatchConfig (..), defaultConfig, WatchMode (..),
                                             eventTime, watchDir,
                                             withManagerConf)
 import           System.FSNotify.Devel     (existsEvents)
@@ -105,7 +105,7 @@ import           Diagrams.Util
 --   "Options.Applicative.Extra" but without the short option 'h'.  We
 --   want the 'h' for Height.
 helper' :: Parser (a -> a)
-helper' = abortOption ShowHelpText $ mconcat
+helper' = abortOption (ShowHelpText Nothing) $ mconcat
   [long "help", short '?', help "Show this help text"]
 
 -- | Apply a parser to the command line that includes the standard
@@ -517,7 +517,7 @@ defaultLoopRender opts = when (_loop opts) $ do
       timeOfDay   = take 8 . drop 11 . show . eventTime
 
   -- Polling is only used on Windows
-  withManagerConf defaultConfig { confPollInterval = _interval opts } $
+  withManagerConf defaultConfig { confWatchMode = WatchModePoll $ _interval opts } $
     \mgr -> do
       lock <- newIORef False
 

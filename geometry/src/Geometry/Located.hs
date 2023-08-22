@@ -178,7 +178,7 @@ instance (NFData (Vn a), NFData a) => NFData (Located a) where
   rnf (Loc p a) = rnf p `seq` rnf a
   {-# INLINE rnf #-}
 
-instance (Hashable1 (V a), Hashable (N a), Hashable a) => Hashable (Located a) where
+instance (Hashable1 (V a), Hashable (N a), Hashable a, Eq (V a (N a))) => Hashable (Located a) where
   hashWithSalt s (Loc (P p) a) = hashWithSalt1 s p `hashWithSalt` a
   {-# INLINE hashWithSalt #-}
 

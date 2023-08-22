@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     AppMain
-                       Data.TrainInformationMessage
+--                       Data.TrainInformationMessage
                        Data.PasreAssignmentFileOC
   build-depends:       base
                      , parsec

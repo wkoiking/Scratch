@@ -236,6 +236,10 @@ instance (Eq1 v, Eq n) => Eq (Line v n) where
   Line s1 _ == Line s2 _ = length s1 == length s1 && eq1 (toList s1) (toList s2)
   {-# INLINE (==) #-}
 
+instance Eq1 v => Eq1 (Line v) where
+    liftEq eq (Line s1 _) (Line s2 _) = liftEq (liftEq eq) (toList s1) (toList s2)
+    {-# INLINE liftEq #-}
+
 instance Show1 v => Show1 (Line v) where
   liftShowsPrec x y d line = showParen (d > 10) $
     showString "fromSegments " . liftShowList x y (toListOf segments line)
@@ -475,6 +479,10 @@ instance (Additive v, Num n) => Reversing (Line v n) where
 data Loop v n = Loop !(Line v n) !(ClosingSegment v n)
   deriving (Eq, Functor)
 
+instance Eq1 v => Eq1 (Loop v) where
+    liftEq eq (Loop l1 c1) (Loop l2 c2) = liftEq eq l1 l2 && liftEq eq c1 c2
+    {-# INLINE liftEq #-}
+
 type instance V (Loop v n) = v
 type instance N (Loop v n) = n
 type instance Codomain (Loop v n) = v
@@ -634,6 +642,12 @@ data Trail v n
 type instance V (Trail v n) = v
 type instance N (Trail v n) = n
 type instance Codomain (Trail v n) = v
+
+instance Eq1 v => Eq1 (Trail v) where
+    liftEq eq (OpenTrail l1) (OpenTrail l2) = liftEq eq l1 l2
+    liftEq eq (ClosedTrail l1) (ClosedTrail l2) = liftEq eq l1 l2
+    liftEq _ _ _ = False
+    {-# INLINE liftEq #-}
 
 instance Show1 v => Show1 (Trail v) where
   liftShowsPrec x y d = \case

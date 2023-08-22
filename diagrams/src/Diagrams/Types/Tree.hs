@@ -418,8 +418,8 @@ instance Monoid d => FoldableWithIndex d (NE i d u m a) where
       Concat _ ts          -> foldr (\t b' -> go d b' t) b ts
   {-# INLINE ifoldr #-}
 
-  ifolded = ifoldring ifoldr
-  {-# INLINE ifolded #-}
+--   ifolded = ifoldring ifoldr
+--   {-# INLINE ifolded #-}
 
   ifoldMap = ifoldMapOf ifolded
   {-# INLINE ifoldMap #-}
@@ -453,8 +453,8 @@ itraversedNE = conjoined traverse itraversedNE'
 --  #-}
 
 instance Monoid d => TraversableWithIndex d (NE i d u m a) where
-  itraversed = itraversedNE
-  {-# INLINE itraversed #-}
+--   itraversed = itraversedNE
+--   {-# INLINE itraversed #-}
   itraverse = itraverseOf itraversedNE
   {-# INLINE itraverse #-}
 
@@ -529,8 +529,8 @@ instance Monoid d => FoldableWithIndex d (IDUAL i d u m a) -- where
   -- {-# INLINE ifolded #-}
 
 instance Monoid d => TraversableWithIndex d (IDUAL i d u m a) where
-  itraversed = ne .> itraversedNE
-  {-# INLINE itraversed #-}
+--   itraversed = ne .> itraversedNE
+--   {-# INLINE itraversed #-}
   itraverse = itraverseOf itraversed
   {-# INLINE itraverse #-}
 
